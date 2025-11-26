@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Healthy Her</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom scrollbar for chat */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen relative pb-20 md:pb-0">
+
+    <!-- App Root -->
+    <div id="app"></div>
+
+    <!-- Floating Chat Widget Container -->
+    <div id="chat-container" class="fixed bottom-20 right-4 z-50 md:bottom-10"></div>
+
+    <script>
+        // --- Constants & Data ---
+        const DOCTORS = [
+            { id: 1, name: "Dr. Sarah Johnson", specialty: "Gynecologist", rating: 4.9, distance: "1.2 km", available: true },
+            { id: 2, name: "Dr. Emily Chen", specialty: "Endocrinologist (PCOS)", rating: 4.8, distance: "3.5 km", available: false },
+            { id: 3, name: "Dr. Priya Patel", specialty: "General Physician", rating: 4.7, distance: "0.8 km", available: true },
+            { id: 4, name: "Dr. Anita Roy", specialty: "Therapist", rating: 4.9, distance: "2.0 km", available: true },
+        ];
+
+        const HEALTH_TOPICS = [
+            {
+                id: 'pcos',
+                title: "PCOS Awareness",
+                icon: "activity",
+                color: "text-purple-500",
+                description: "Polycystic Ovary Syndrome affects hormone levels.",
+                details: "Common symptoms include irregular periods, excess androgen, and polycystic ovaries. Management includes diet changes, exercise, and medication."
+            },
+            {
+                id: 'breast',
+                title: "Breast Health",
+                icon: "heart",
+                color: "text-pink-500",
+                description: "Regular self-exams are crucial for early detection.",
+                details: "Perform a self-exam once a month, preferably a few days after your period ends. Look for lumps, skin dimpling, or changes in size."
+            },
+            {
+                id: 'mental',
+                title: "Mental Wellness",
+                icon: "smile",
+                color: "text-yellow-500",
+                description: "Tracking mood swings and anxiety triggers.",
+                details: "Hormonal fluctuations can impact mental health. Practice mindfulness, ensure adequate sleep, and consult a therapist if feelings persist."
+            },
+            {
+                id: 'thyroid',
+                title: "Thyroid Health",
+                icon: "shield-alert",
+                color: "text-blue-500",
+                description: "Thyroid function impacts your entire cycle.",
+                details: "Hypothyroidism can cause heavy periods, while hyperthyroidism can cause absent ones. Regular TSH screening is recommended."
+            }
+        ];
+
+        const SYMPTOMS_ADVICE = {
+            "Cramps": "Try a heat patch, chamomile tea, or gentle yoga stretches specifically for the pelvic area.",
+            "Bloating": "Reduce salt intake, drink plenty of water, and avoid carbonated drinks.",
+            "Headache": "Rest in a dark room, stay hydrated, and consider magnesium supplements.",
+            "Acne": "Keep your skin clean, avoid heavy makeup, and consider zinc supplements.",
+            "Fatigue": "Prioritize sleep and eat iron-rich foods like spinach or lentils."
+        };
+
+        // --- State Management ---
+        const state = {
+            user: null, // { phone: string }
+            activeTab: 'dashboard',
+            authStep: 1,
+            authPhone: '',
+            authOtp: '',
+            authLoading: false,
+            
+            // Cycle Data
+            currentDate: new Date(),
+            cycleData: {}, // 'YYYY-MM-DD': { flow, symptoms: [] }
+            selectedDateDetails: null, // { dateKey, day, data }
+            
+            // Health Library
+            expandedTopicId: null,
+
+            // Doctors
+            bookedDoctors: [],
+
+            // Chat
+            chatOpen: false,
+            chatInput: '',
+            chatMessages: [
+                { id: 1, sender: 'bot', text: "Hi! I'm your health assistant. How can I help you today?" }
+            ]
+        };
+
+        // --- Main Render Function ---
+        function render() {
+            const app = document.getElementById('app');
+            const chatContainer = document.getElementById('chat-container');
+            
+            if (!state.user) {
+                // Not logged in: Show Auth Screen, Hide Chat
+                app.innerHTML = renderAuthScreen();
+                chatContainer.innerHTML = ''; // Ensure chat is hidden
+            } else {
+                // Logged in: Show App and Chat
+                app.innerHTML = `
+                    ${renderHeader()}
+                    <div class="flex min-h-screen pt-[72px]">
+                        ${renderDesktopNav()}
+                        <main class="flex-1 max-w-3xl mx-auto p-4 md:p-6 pb-24 md:pl-24">
+                            ${renderContent()}
+                        </main>
+                    </div>
+                    ${renderMobileNav()}
+                    ${state.selectedDateDetails ? renderDayLogModal() : ''}
+                `;
+                renderChatWidget(); // Only render chat if user exists
+            }
+            
+            lucide.createIcons();
+        }
+
+        // --- Render Components ---
+
+        function renderAuthScreen() {
+            return `
+                <div class="min-h-screen bg-rose-50 flex flex-col items-center justify-center p-6 fade-in">
+                    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+                        <div class="flex justify-center mb-6">
+                            <div class="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center">
+                                <i data-lucide="heart" class="w-8 h-8 text-rose-500"></i>
+                            </div>
+                        </div>
+                        <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">Healthy Her</h1>
+                        <p class="text-center text-gray-500 mb-8">Secure Login via Mobile</p>
+
+                        ${state.authStep === 1 ? `
+                            <form onsubmit="handleSendOtp(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                                    <div class="relative">
+                                        <i data-lucide="phone" class="absolute left-3 top-3 w-5 h-5 text-gray-400"></i>
+                                        <!-- Removed render() from oninput to fix focus issue -->
+                                        <input 
+                                            type="tel" 
+                                            value="${state.authPhone}"
+                                            oninput="state.authPhone = this.value"
+                                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                                            placeholder="Enter your number"
+                                            autofocus
+                                        />
+                                    </div>
+                                </div>
+                                <button 
+                                    type="submit"
+                                    ${state.authLoading ? 'disabled' : ''}
+                                    class="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-lg transition-colors flex justify-center items-center"
+                                >
+                                    ${state.authLoading ? 'Sending...' : 'Send OTP'}
+                                </button>
+                            </form>
+                        ` : `
+                            <form onsubmit="handleVerifyOtp(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Enter OTP</label>
+                                    <div class="relative">
+                                        <i data-lucide="lock" class="absolute left-3 top-3 w-5 h-5 text-gray-400"></i>
+                                        <!-- Removed render() from oninput -->
+                                        <input 
+                                            type="text" 
+                                            value="${state.authOtp}"
+                                            oninput="state.authOtp = this.value"
+                                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                                            placeholder="xxxx"
+                                            autofocus
+                                        />
+                                    </div>
+                                    <p class="text-xs text-right mt-1 text-rose-500 cursor-pointer hover:underline" onclick="state.authStep = 1; render()">Wrong number?</p>
+                                </div>
+                                <button 
+                                    type="submit"
+                                    ${state.authLoading ? 'disabled' : ''}
+                                    class="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-lg transition-colors"
+                                >
+                                    ${state.authLoading ? 'Verifying...' : 'Verify & Login'}
+                                </button>
+                            </form>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderHeader() {
+            return `
+                <header class="bg-white shadow-sm fixed top-0 left-0 right-0 z-20 px-6 py-4 flex justify-between items-center h-[72px]">
+                    <h1 class="text-xl font-bold text-rose-600 flex items-center gap-2">
+                        <i data-lucide="heart" class="fill-rose-600 text-rose-600"></i> Healthy Her
+                    </h1>
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm font-medium text-gray-600 hidden sm:block">Welcome, User</span>
+                        <div class="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-rose-600 font-bold">U</div>
+                    </div>
+                </header>
+            `;
+        }
+
+        function renderDesktopNav() {
+            const tabs = [
+                { id: 'dashboard', icon: 'activity', label: 'Dash' },
+                { id: 'tracker', icon: 'calendar', label: 'Cycle' },
+                { id: 'health', icon: 'book-open', label: 'Health' },
+                { id: 'doctors', icon: 'stethoscope', label: 'Doctors' }
+            ];
+
+            return `
+                <div class="hidden md:flex fixed left-0 top-[72px] bottom-0 w-20 bg-white border-r flex-col items-center pt-8 gap-8 z-10">
+                    ${tabs.map(tab => `
+                        <button onclick="setActiveTab('${tab.id}')" class="flex flex-col items-center gap-1 ${state.activeTab === tab.id ? 'text-rose-600' : 'text-gray-400 hover:text-rose-400'}">
+                            <i data-lucide="${tab.icon}" width="24" height="24"></i>
+                            <span class="text-[10px] font-medium">${tab.label}</span>
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderMobileNav() {
+            const tabs = [
+                { id: 'dashboard', icon: 'activity', label: 'Dash' },
+                { id: 'tracker', icon: 'calendar', label: 'Cycle' },
+                { id: 'health', icon: 'book-open', label: 'Health' },
+                { id: 'doctors', icon: 'stethoscope', label: 'Doctors' }
+            ];
+
+            return `
+                <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3 flex justify-around items-center z-40 md:hidden">
+                    ${tabs.map(tab => `
+                        <button onclick="setActiveTab('${tab.id}')" class="flex flex-col items-center gap-1 ${state.activeTab === tab.id ? 'text-rose-600' : 'text-gray-400 hover:text-rose-400'}">
+                            <i data-lucide="${tab.icon}" width="24" height="24"></i>
+                            <span class="text-[10px] font-medium">${tab.label}</span>
+                        </button>
+                    `).join('')}
+                </nav>
+            `;
+        }
+
+        function renderContent() {
+            switch(state.activeTab) {
+                case 'dashboard': return renderDashboardView();
+                case 'tracker': return renderTrackerView();
+                case 'health': return renderHealthLibraryView();
+                case 'doctors': return renderDoctorsView();
+                default: return renderDashboardView();
+            }
+        }
+
+        function renderDashboardView() {
+            return `
+                <div class="space-y-6 fade-in">
+                    <div class="bg-gradient-to-r from-rose-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
+                        <h2 class="text-2xl font-bold mb-1">Hello, Beautiful!</h2>
+                        <p class="opacity-90 mb-4">Day 12 of your cycle • Follicular Phase</p>
+                        
+                        <div class="flex gap-4 mt-6">
+                            <div class="bg-white/20 backdrop-blur-sm rounded-lg p-3 flex-1 text-center">
+                                <span class="block text-xs uppercase tracking-wider opacity-80">Next Period</span>
+                                <span class="text-xl font-bold">14 Days</span>
+                            </div>
+                            <div class="bg-white/20 backdrop-blur-sm rounded-lg p-3 flex-1 text-center">
+                                <span class="block text-xs uppercase tracking-wider opacity-80">Fertility</span>
+                                <span class="text-xl font-bold">High</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="setActiveTab('tracker')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-2 hover:bg-rose-50 transition-colors">
+                            <div class="bg-rose-100 p-2 rounded-full text-rose-600"><i data-lucide="droplet" width="20"></i></div>
+                            <span class="font-semibold text-gray-700">Log Period</span>
+                        </button>
+                        <button onclick="setActiveTab('doctors')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-2 hover:bg-rose-50 transition-colors">
+                            <div class="bg-blue-100 p-2 rounded-full text-blue-600"><i data-lucide="stethoscope" width="20"></i></div>
+                            <span class="font-semibold text-gray-700">Find Doctor</span>
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i data-lucide="shield-alert" class="text-orange-500" width="18"></i> Health Insights
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="flex items-start gap-3 p-3 bg-orange-50 rounded-lg">
+                                <span class="text-2xl">💧</span>
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-800">Hydration Alert</p>
+                                    <p class="text-xs text-gray-600">You logged headaches yesterday. Drink at least 2L water today.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
+                                <span class="text-2xl">🧘‍♀️</span>
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-800">Manage Stress</p>
+                                    <p class="text-xs text-gray-600">High stress levels detected. Try a 5-min breathing exercise.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderTrackerView() {
+            const year = state.currentDate.getFullYear();
+            const month = state.currentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDay = new Date(year, month, 1).getDay();
+            
+            const monthName = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(state.currentDate);
+
+            let daysHtml = '';
+            // Padding
+            for (let i = 0; i < firstDay; i++) {
+                daysHtml += `<div></div>`;
+            }
+            // Days
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateKey = `${year}-${month}-${day}`;
+                const hasData = state.cycleData[dateKey];
+                let dotHtml = '';
+                
+                if (hasData) {
+                    let dotColor = '';
+                    if (hasData.flow === 'Heavy') dotColor = 'bg-rose-600';
+                    else if (hasData.flow === 'Medium') dotColor = 'bg-rose-400';
+                    else if (hasData.flow === 'Light') dotColor = 'bg-rose-300';
+                    else if (hasData.symptoms && hasData.symptoms.length > 0) dotColor = 'bg-purple-400';
+                    
+                    if(dotColor) dotHtml = `<span class="w-1.5 h-1.5 rounded-full mt-1 ${dotColor}"></span>`;
+                }
+
+                daysHtml += `
+                    <button 
+                        onclick="handleDateClick(${day})"
+                        class="aspect-square flex flex-col items-center justify-center rounded-lg hover:bg-rose-50 transition-colors relative"
+                    >
+                        <span class="text-gray-700">${day}</span>
+                        ${dotHtml}
+                    </button>
+                `;
+            }
+
+            return `
+                <div class="space-y-4 fade-in">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                        <div class="flex justify-between items-center mb-6">
+                            <button onclick="changeMonth(-1)" class="p-2 hover:bg-gray-100 rounded-full"><i data-lucide="chevron-left" width="20"></i></button>
+                            <h2 class="text-lg font-bold text-gray-800">${monthName}</h2>
+                            <button onclick="changeMonth(1)" class="p-2 hover:bg-gray-100 rounded-full"><i data-lucide="chevron-right" width="20"></i></button>
+                        </div>
+
+                        <div class="grid grid-cols-7 gap-2 text-center text-sm mb-2">
+                            ${['S','M','T','W','T','F','S'].map(d => `<span class="text-gray-400 font-medium">${d}</span>`).join('')}
+                        </div>
+                        <div class="grid grid-cols-7 gap-2">
+                            ${daysHtml}
+                        </div>
+                    </div>
+
+                    <div class="flex justify-center gap-4 text-xs text-gray-500">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-600"></span> Heavy</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-400"></span> Medium</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-400"></span> Symptoms</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDayLogModal() {
+            const { day, data } = state.selectedDateDetails;
+            const advice = (data.symptoms || []).map(s => SYMPTOMS_ADVICE[s]).filter(Boolean);
+
+            return `
+                <div class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+                    <div class="bg-white w-full max-w-md rounded-2xl p-6 fade-in">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold">Log for Day ${day}</h3>
+                            <button onclick="closeModal()"><i data-lucide="x" width="20"></i></button>
+                        </div>
+
+                        <div class="mb-6">
+                            <p class="text-sm font-semibold text-gray-500 mb-2 uppercase">Period Flow</p>
+                            <div class="flex gap-2">
+                                ${['None', 'Light', 'Medium', 'Heavy'].map(flow => `
+                                    <button
+                                        onclick="updateModalData('flow', '${flow === 'None' ? '' : flow}')"
+                                        class="flex-1 py-2 rounded-lg text-sm border ${data.flow === flow ? 'bg-rose-500 text-white border-rose-500' : 'border-gray-200 text-gray-600'}"
+                                    >
+                                        ${flow}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <div class="mb-6">
+                            <p class="text-sm font-semibold text-gray-500 mb-2 uppercase">Symptoms</p>
+                            <div class="flex flex-wrap gap-2">
+                                ${Object.keys(SYMPTOMS_ADVICE).map(sym => `
+                                    <button
+                                        onclick="toggleSymptom('${sym}')"
+                                        class="px-3 py-1 rounded-full text-sm border ${(data.symptoms || []).includes(sym) ? 'bg-purple-100 text-purple-700 border-purple-200' : 'border-gray-200 text-gray-600'}"
+                                    >
+                                        ${sym}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        ${advice.length > 0 ? `
+                            <div class="mb-6 bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+                                <p class="text-xs font-bold text-yellow-700 mb-1 flex items-center gap-1"><i data-lucide="star" width="12"></i> Personalized Tips:</p>
+                                <ul class="text-xs text-gray-700 list-disc pl-4 space-y-1">
+                                    ${advice.map(tip => `<li>${tip}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        <button 
+                            onclick="saveLog()"
+                            class="w-full bg-rose-600 text-white py-3 rounded-xl font-semibold hover:bg-rose-700"
+                        >
+                            Save Log
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderHealthLibraryView() {
+            return `
+                <div class="space-y-4 fade-in">
+                    <h2 class="text-2xl font-bold text-gray-800">Women's Health Hub</h2>
+                    <p class="text-gray-500 text-sm">Curated insights for your wellbeing.</p>
+                    
+                    <div class="grid gap-4">
+                        ${HEALTH_TOPICS.map(topic => {
+                            const isExpanded = state.expandedTopicId === topic.id;
+                            return `
+                                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                                    <div 
+                                        class="p-4 flex items-start gap-4 cursor-pointer"
+                                        onclick="toggleTopic('${topic.id}')"
+                                    >
+                                        <div class="mt-1 ${topic.color}"><i data-lucide="${topic.icon}" width="24"></i></div>
+                                        <div class="flex-1">
+                                            <h3 class="font-bold text-gray-800 flex justify-between">
+                                                ${topic.title}
+                                                <i data-lucide="chevron-right" width="16" class="transition-transform text-gray-400 ${isExpanded ? 'rotate-90' : ''}"></i>
+                                            </h3>
+                                            <p class="text-sm text-gray-500 mt-1">${topic.description}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    ${isExpanded ? `
+                                        <div class="px-4 pb-4 pl-14 text-sm text-gray-600 bg-gray-50/50 pt-2 border-t border-gray-100">
+                                            ${topic.details}
+                                            <div class="mt-3">
+                                                <span class="text-rose-500 font-semibold text-xs cursor-pointer hover:underline">Read full article →</span>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDoctorsView() {
+            return `
+                <div class="space-y-4 fade-in">
+                    <h2 class="text-2xl font-bold text-gray-800">Find Specialists</h2>
+                    <div class="relative mb-4">
+                        <i data-lucide="map-pin" class="absolute left-3 top-3 text-gray-400 w-5 h-5"></i>
+                        <input type="text" placeholder="Search by location or specialty..." class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-rose-500" />
+                    </div>
+
+                    <div class="grid gap-4">
+                        ${DOCTORS.map(doc => {
+                            const isBooked = state.bookedDoctors.includes(doc.id);
+                            return `
+                                <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-4">
+                                    <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center text-2xl">
+                                        👩‍⚕️
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="flex justify-between items-start">
+                                            <h3 class="font-bold text-gray-800">${doc.name}</h3>
+                                            <span class="flex items-center text-xs font-bold text-yellow-500">
+                                                <i data-lucide="star" width="12" class="fill-yellow-500 mr-1"></i> ${doc.rating}
+                                            </span>
+                                        </div>
+                                        <p class="text-sm text-rose-600 font-medium">${doc.specialty}</p>
+                                        <p class="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                            <i data-lucide="map-pin" width="12"></i> ${doc.distance} away
+                                        </p>
+                                    </div>
+                                    <button 
+                                        onclick="bookDoctor(${doc.id})"
+                                        ${isBooked ? 'disabled' : ''}
+                                        class="px-6 py-2 rounded-full text-sm font-semibold transition-colors ${isBooked ? 'bg-green-100 text-green-700' : 'bg-rose-500 text-white hover:bg-rose-600'}"
+                                    >
+                                        ${isBooked ? 'Requested' : 'Connect'}
+                                    </button>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderChatWidget() {
+            const container = document.getElementById('chat-container');
+            if (state.chatOpen) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl shadow-2xl w-80 h-96 flex flex-col overflow-hidden border border-rose-100 fade-in">
+                        <div class="bg-rose-500 p-4 flex justify-between items-center text-white">
+                            <h3 class="font-semibold flex items-center gap-2">
+                                <i data-lucide="message-circle" width="18"></i> Support Chat
+                            </h3>
+                            <button onclick="toggleChat()"><i data-lucide="x" width="18"></i></button>
+                        </div>
+                        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 scrollbar-hide">
+                            ${state.chatMessages.map(msg => `
+                                <div class="flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}">
+                                    <div class="max-w-[80%] p-3 rounded-lg text-sm ${msg.sender === 'user' ? 'bg-rose-500 text-white rounded-br-none' : 'bg-white text-gray-800 shadow-sm rounded-bl-none border border-gray-100'}">
+                                        ${msg.text}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="p-3 bg-white border-t border-gray-100 flex gap-2">
+                            <input 
+                                type="text" 
+                                id="chat-input"
+                                value="${state.chatInput}"
+                                oninput="state.chatInput = this.value"
+                                onkeypress="if(event.key === 'Enter') sendMessage()"
+                                placeholder="Type a message..."
+                                class="flex-1 border border-gray-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-rose-500"
+                            />
+                            <button onclick="sendMessage()" class="bg-rose-500 text-white p-2 rounded-full hover:bg-rose-600">
+                                <i data-lucide="send" width="16"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                // Scroll to bottom
+                setTimeout(() => {
+                    const el = document.getElementById('chat-messages');
+                    if(el) el.scrollTop = el.scrollHeight;
+                    document.getElementById('chat-input').focus();
+                }, 10);
+            } else {
+                container.innerHTML = `
+                    <button 
+                        onclick="toggleChat()"
+                        class="bg-rose-500 hover:bg-rose-600 text-white p-4 rounded-full shadow-lg transition-transform hover:scale-110 flex items-center justify-center"
+                    >
+                        <i data-lucide="message-circle" width="28"></i>
+                    </button>
+                `;
+            }
+            lucide.createIcons();
+        }
+
+        // --- Logic & Event Handlers ---
+
+        function handleSendOtp(e) {
+            e.preventDefault();
+            if (state.authPhone.length < 10) return alert("Please enter a valid mobile number");
+            state.authLoading = true;
+            render();
+            
+            setTimeout(() => {
+                state.authLoading = false;
+                state.authStep = 2;
+                alert(`Your demo OTP is 1234`);
+                render();
+            }, 1500);
+        }
+
+        function handleVerifyOtp(e) {
+            e.preventDefault();
+            state.authLoading = true;
+            render();
+
+            setTimeout(() => {
+                if (state.authOtp === '1234') {
+                    state.user = { phone: state.authPhone };
+                } else {
+                    alert("Invalid OTP");
+                }
+                state.authLoading = false;
+                render();
+            }, 1000);
+        }
+
+        function setActiveTab(tab) {
+            state.activeTab = tab;
+            render();
+        }
+
+        function changeMonth(delta) {
+            const newDate = new Date(state.currentDate);
+            newDate.setMonth(newDate.getMonth() + delta);
+            state.currentDate = newDate;
+            render();
+        }
+
+        function handleDateClick(day) {
+            const year = state.currentDate.getFullYear();
+            const month = state.currentDate.getMonth();
+            const dateKey = `${year}-${month}-${day}`;
+            
+            state.selectedDateDetails = {
+                dateKey,
+                day,
+                data: state.cycleData[dateKey] || { flow: '', symptoms: [] }
+            };
+            render();
+        }
+
+        function closeModal() {
+            state.selectedDateDetails = null;
+            render();
+        }
+
+        function updateModalData(key, value) {
+            if (state.selectedDateDetails) {
+                state.selectedDateDetails.data[key] = value;
+                render();
+            }
+        }
+
+        function toggleSymptom(sym) {
+            if (state.selectedDateDetails) {
+                const current = state.selectedDateDetails.data.symptoms || [];
+                if (current.includes(sym)) {
+                    state.selectedDateDetails.data.symptoms = current.filter(s => s !== sym);
+                } else {
+                    state.selectedDateDetails.data.symptoms = [...current, sym];
+                }
+                render();
+            }
+        }
+
+        function saveLog() {
+            if (state.selectedDateDetails) {
+                state.cycleData[state.selectedDateDetails.dateKey] = state.selectedDateDetails.data;
+                state.selectedDateDetails = null;
+                render();
+            }
+        }
+
+        function toggleTopic(id) {
+            state.expandedTopicId = state.expandedTopicId === id ? null : id;
+            render();
+        }
+
+        function bookDoctor(id) {
+            if (!state.bookedDoctors.includes(id)) {
+                state.bookedDoctors.push(id);
+                alert("Tele-consultation request sent! The clinic will call you shortly.");
+                render();
+            }
+        }
+
+        function toggleChat() {
+            state.chatOpen = !state.chatOpen;
+            renderChatWidget();
+        }
+
+        function sendMessage() {
+            const text = state.chatInput.trim();
+            if (!text) return;
+
+            state.chatMessages.push({ id: Date.now(), sender: 'user', text });
+            state.chatInput = '';
+            renderChatWidget();
+
+            setTimeout(() => {
+                let botResponse = "I recommend consulting a specialist for that specific issue.";
+                const lowerInput = text.toLowerCase();
+                
+                if (lowerInput.includes('cramp') || lowerInput.includes('pain')) botResponse = SYMPTOMS_ADVICE['Cramps'];
+                else if (lowerInput.includes('bloat')) botResponse = SYMPTOMS_ADVICE['Bloating'];
+                else if (lowerInput.includes('doctor')) botResponse = "You can find local specialists in the 'Doctors' tab.";
+                else if (lowerInput.includes('period')) botResponse = "Make sure to log your period dates in the Calendar for accurate predictions.";
+                else if (lowerInput.includes('hi') || lowerInput.includes('hello')) botResponse = "Hello! Ask me about symptoms, cycle tracking, or finding a doctor.";
+
+                state.chatMessages.push({ id: Date.now() + 1, sender: 'bot', text: botResponse });
+                renderChatWidget();
+            }, 1000);
+        }
+
+        // Initial Render
+        render();
+
+    </script>
+</body>
+</html>
