@@ -7,13 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* --- GLOBAL STYLES --- */
-        body {
-            -webkit-tap-highlight-color: transparent;
-            background-color: #f9fafb;
-        }
-
-        /* Custom scrollbar for chat areas */
+        /* Custom scrollbar for chat */
         .scrollbar-hide::-webkit-scrollbar {
             display: none;
         }
@@ -21,18 +15,15 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
-
-        /* Animations */
         .fade-in {
-            animation: fadeIn 0.4s ease-in-out;
+            animation: fadeIn 0.3s ease-in-out;
         }
         .slide-up {
-            animation: slideUp 0.3s ease-out;
+            animation: slideUp 0.3s ease-in-out;
         }
         .zoom-in {
             animation: zoomIn 0.2s ease-out;
         }
-        
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -45,22 +36,16 @@
             from { transform: scale(0.95); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
         }
-        @keyframes pulse-ring {
-            0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(244, 63, 94, 0); }
-            100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
-        }
 
         /* Chat Message Bubbles */
         .msg-bubble {
-            max-width: 80%;
+            max-width: 75%;
             padding: 10px 14px;
-            border-radius: 16px;
+            border-radius: 18px;
             font-size: 14px;
             line-height: 1.5;
             position: relative;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-            word-wrap: break-word;
         }
         .msg-sent {
             background-color: #f43f5e; /* Rose-500 */
@@ -72,7 +57,7 @@
             background-color: white;
             color: #374151; /* Gray-700 */
             align-self: flex-start;
-            border: 1px solid #e5e7eb;
+            border: 1px solid #f3f4f6;
             border-bottom-left-radius: 4px;
         }
 
@@ -82,18 +67,16 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 9999;
+            z-index: 100;
             display: flex;
             flex-direction: column;
             gap: 10px;
             pointer-events: none;
-            width: 90%;
-            max-width: 350px;
         }
         .toast {
-            background: #1f2937; /* Gray-800 */
+            background: #333;
             color: white;
-            padding: 12px 20px;
+            padding: 12px 24px;
             border-radius: 50px;
             font-size: 14px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -101,84 +84,35 @@
             pointer-events: auto;
             display: flex;
             align-items: center;
-            gap: 10px;
-            justify-content: center;
+            gap: 8px;
         }
         @keyframes slideDown {
             from { opacity: 0; transform: translateY(-20px); }
             to { opacity: 1; transform: translateY(0); }
         }
-
-        /* Call Controls */
-        .call-btn {
-            transition: all 0.2s ease;
-        }
-        .call-btn:active {
-            transform: scale(0.9);
-        }
-        .call-btn-active {
-            background-color: white;
-            color: #dc2626; /* Red-600 */
-        }
-        .call-btn-inactive {
-            background-color: rgba(255, 255, 255, 0.2);
-            color: white;
-            backdrop-filter: blur(4px);
-        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen relative pb-20 md:pb-0">
 
-    <!-- App Root Container -->
+    <!-- App Root -->
     <div id="app"></div>
 
-    <!-- Global Floating Containers -->
+    <!-- Floating Chat Widget Container -->
     <div id="chat-container"></div>
-    <div id="video-call-container"></div> <!-- Unified container for both Voice & Video -->
+
+    <!-- Video Call Overlay Container -->
+    <div id="video-call-container"></div>
+
+    <!-- Toast Container -->
     <div id="toast-container"></div>
 
     <script>
-        // ==========================================
-        // 1. DATA & CONSTANTS
-        // ==========================================
-
+        // --- Constants & Data ---
         const DOCTORS = [
-            { 
-                id: 1, 
-                name: "Dr. Sarah Johnson", 
-                specialty: "Gynecologist", 
-                rating: 4.9, 
-                distance: "1.2 km", 
-                available: true, 
-                image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah&backgroundColor=c0aede" 
-            },
-            { 
-                id: 2, 
-                name: "Dr. Emily Chen", 
-                specialty: "Endocrinologist (PCOS)", 
-                rating: 4.8, 
-                distance: "3.5 km", 
-                available: false, 
-                image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Emily&backgroundColor=ffdfbf" 
-            },
-            { 
-                id: 3, 
-                name: "Dr. Priya Patel", 
-                specialty: "Gen. Physician", 
-                rating: 4.7, 
-                distance: "0.8 km", 
-                available: true, 
-                image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Priya&backgroundColor=b6e3f4" 
-            },
-            { 
-                id: 4, 
-                name: "Dr. Anita Roy", 
-                specialty: "Therapist", 
-                rating: 4.9, 
-                distance: "2.0 km", 
-                available: true, 
-                image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Anita&backgroundColor=ffdfbf" 
-            },
+            { id: 1, name: "Dr. Sarah Johnson", specialty: "Gynecologist", rating: 4.9, distance: "1.2 km", available: true, image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah" },
+            { id: 2, name: "Dr. Emily Chen", specialty: "Endocrinologist (PCOS)", rating: 4.8, distance: "3.5 km", available: false, image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Emily" },
+            { id: 3, name: "Dr. Priya Patel", specialty: "Gen. Physician", rating: 4.7, distance: "0.8 km", available: true, image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Priya" },
+            { id: 4, name: "Dr. Anita Roy", specialty: "Therapist", rating: 4.9, distance: "2.0 km", available: true, image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Anita" },
         ];
 
         const PHARMACIES = [
@@ -196,20 +130,18 @@
                 description: "Polycystic Ovary Syndrome affects hormone levels.",
                 details: "Common symptoms include irregular periods, excess androgen, and polycystic ovaries. Management includes diet changes, exercise, and medication.",
                 fullArticle: `
-                    <div class="space-y-4">
-                        <h4 class="font-bold text-xl text-rose-600">Understanding PCOS</h4>
-                        <p class="text-gray-600 leading-relaxed">Polycystic Ovary Syndrome (PCOS) is a hormonal disorder causing enlarged ovaries with small cysts on the outer edges. The cause isn't well understood, but may involve a combination of genetic and environmental factors.</p>
-                        
-                        <h4 class="font-bold text-xl text-rose-600">Lifestyle Management</h4>
-                        <ul class="list-disc pl-5 text-gray-600 space-y-2">
-                            <li><strong>Low-GI Diet:</strong> Focus on whole grains, fresh vegetables, and lean proteins to manage insulin levels.</li>
-                            <li><strong>Regular Exercise:</strong> Aim for 30 minutes of moderate activity daily to help regulate blood sugar and weight.</li>
-                            <li><strong>Sleep:</strong> Prioritize 7-8 hours of sleep as poor sleep can disrupt hormones further.</li>
-                        </ul>
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">Understanding PCOS</h4>
+                    <p class="mb-4 text-gray-600 leading-relaxed">Polycystic Ovary Syndrome (PCOS) is a hormonal disorder causing enlarged ovaries with small cysts on the outer edges. The cause isn't well understood, but may involve a combination of genetic and environmental factors.</p>
+                    
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">Lifestyle Management</h4>
+                    <ul class="list-disc pl-5 mb-4 space-y-2 text-gray-600">
+                        <li><strong>Low-GI Diet:</strong> Focus on whole grains, fresh vegetables, and lean proteins to manage insulin levels.</li>
+                        <li><strong>Regular Exercise:</strong> Aim for 30 minutes of moderate activity daily to help regulate blood sugar and weight.</li>
+                        <li><strong>Sleep:</strong> Prioritize 7-8 hours of sleep as poor sleep can disrupt hormones further.</li>
+                    </ul>
 
-                        <h4 class="font-bold text-xl text-rose-600">When to See a Doctor</h4>
-                        <p class="text-gray-600">If you have missed periods and aren't pregnant, or experience symptoms like excess hair growth (hirsutism), severe acne, or unexplained weight gain, consult a specialist.</p>
-                    </div>
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">When to See a Doctor</h4>
+                    <p class="text-gray-600">If you have missed periods and aren't pregnant, or experience symptoms like excess hair growth (hirsutism), severe acne, or unexplained weight gain, consult a specialist.</p>
                 `
             },
             {
@@ -220,17 +152,15 @@
                 description: "Regular self-exams are crucial for early detection.",
                 details: "Perform a self-exam once a month, preferably a few days after your period ends. Look for lumps, skin dimpling, or changes in size.",
                 fullArticle: `
-                    <div class="space-y-4">
-                        <h4 class="font-bold text-xl text-rose-600">The Importance of Self-Exams</h4>
-                        <p class="text-gray-600 leading-relaxed">40% of diagnosed breast cancers are detected by women who feel a lump. Establishing a regular self-exam routine is crucial for early detection and successful treatment.</p>
-                        
-                        <h4 class="font-bold text-xl text-rose-600">Step-by-Step Guide</h4>
-                        <ol class="list-decimal pl-5 text-gray-600 space-y-3">
-                            <li><strong>In the Shower:</strong> Using the pads of your fingers, move around your entire breast in a circular pattern moving from the outside to the center, checking the entire breast and armpit area.</li>
-                            <li><strong>In Front of a Mirror:</strong> Look for any visual changes in the contour, any dimpling of the skin, or changes in the nipple.</li>
-                            <li><strong>Lying Down:</strong> When lying down, the breast tissue spreads evenly along the chest wall. Place a pillow under your right shoulder and your right arm behind your head. Using your left hand, move the pads of your fingers around your right breast gently covering the entire breast area and armpit.</li>
-                        </ol>
-                    </div>
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">The Importance of Self-Exams</h4>
+                    <p class="mb-4 text-gray-600 leading-relaxed">40% of diagnosed breast cancers are detected by women who feel a lump. Establishing a regular self-exam routine is crucial for early detection and successful treatment.</p>
+                    
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">Step-by-Step Guide</h4>
+                    <ol class="list-decimal pl-5 mb-4 space-y-2 text-gray-600">
+                        <li><strong>In the Shower:</strong> Using the pads of your fingers, move around your entire breast in a circular pattern moving from the outside to the center, checking the entire breast and armpit area.</li>
+                        <li><strong>In Front of a Mirror:</strong> Look for any visual changes in the contour, any dimpling of the skin, or changes in the nipple.</li>
+                        <li><strong>Lying Down:</strong> When lying down, the breast tissue spreads evenly along the chest wall. Place a pillow under your right shoulder and your right arm behind your head. Using your left hand, move the pads of your fingers around your right breast gently covering the entire breast area and armpit.</li>
+                    </ol>
                 `
             },
             {
@@ -241,18 +171,19 @@
                 description: "Essential guidance for expectant mothers.",
                 details: "Track your baby's growth, nutritional needs, and preparation for labor. Regular checkups and supplements are key.",
                 fullArticle: `
-                    <div class="space-y-4">
-                        <h4 class="font-bold text-xl text-rose-600">Essential Nutrition</h4>
-                        <p class="text-gray-600 leading-relaxed">Eating for two doesn't mean eating twice as much, but eating twice as well. Focus on nutrient-dense foods.</p>
-                        <ul class="list-disc pl-5 text-gray-600 space-y-2">
-                            <li><strong>Folic Acid:</strong> Crucial for the baby's neural tube development. Found in leafy greens and supplements.</li>
-                            <li><strong>Iron:</strong> Your blood volume increases during pregnancy. Eat lean red meat, spinach, and beans.</li>
-                            <li><strong>Calcium:</strong> Vital for building baby's bones. Dairy, fortified plant milks, and almonds are great sources.</li>
-                        </ul>
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">Essential Nutrition</h4>
+                    <p class="mb-4 text-gray-600 leading-relaxed">Eating for two doesn't mean eating twice as much, but eating twice as well. Focus on nutrient-dense foods.</p>
+                    <ul class="list-disc pl-5 mb-4 space-y-2 text-gray-600">
+                        <li><strong>Folic Acid:</strong> Crucial for the baby's neural tube development. Found in leafy greens and supplements.</li>
+                        <li><strong>Iron:</strong> Your blood volume increases during pregnancy. Eat lean red meat, spinach, and beans.</li>
+                        <li><strong>Calcium:</strong> Vital for building baby's bones. Dairy, fortified plant milks, and almonds are great sources.</li>
+                    </ul>
 
-                        <h4 class="font-bold text-xl text-rose-600">Warning Signs</h4>
-                        <p class="text-gray-600">Contact your doctor immediately if you experience severe headaches, vision changes, sudden swelling (preeclampsia signs), or vaginal bleeding.</p>
-                    </div>
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">Warning Signs</h4>
+                    <p class="text-gray-600 mb-4">Contact your doctor immediately if you experience severe headaches, vision changes, sudden swelling (preeclampsia signs), or vaginal bleeding.</p>
+                    
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">Preparation Checklist</h4>
+                    <p class="text-gray-600">Start packing your hospital bag by week 36. Include comfortable clothes, nursing bras, baby essentials, and important documents.</p>
                 `
             },
             {
@@ -263,17 +194,15 @@
                 description: "Tracking mood swings and anxiety triggers.",
                 details: "Hormonal fluctuations can impact mental health. Practice mindfulness, ensure adequate sleep, and consult a therapist if feelings persist.",
                 fullArticle: `
-                    <div class="space-y-4">
-                        <h4 class="font-bold text-xl text-rose-600">Hormones & Mood</h4>
-                        <p class="text-gray-600 leading-relaxed">Estrogen and progesterone influence serotonin and dopamine levels. Drops in these hormones before your period can trigger irritability, anxiety, or sadness.</p>
-                        
-                        <h4 class="font-bold text-xl text-rose-600">Self-Care Strategies</h4>
-                        <ul class="list-disc pl-5 text-gray-600 space-y-2">
-                            <li><strong>Mindfulness:</strong> Spend 5-10 minutes daily practicing deep breathing or meditation to lower cortisol.</li>
-                            <li><strong>Journaling:</strong> Writing down triggers helps identify patterns in your cycle-related mood changes.</li>
-                            <li><strong>Connection:</strong> Talk to friends or join support groups. Isolation worsens mental fatigue.</li>
-                        </ul>
-                    </div>
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">Hormones & Mood</h4>
+                    <p class="mb-4 text-gray-600 leading-relaxed">Estrogen and progesterone influence serotonin and dopamine levels. Drops in these hormones before your period can trigger irritability, anxiety, or sadness.</p>
+                    
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">Self-Care Strategies</h4>
+                    <ul class="list-disc pl-5 mb-4 space-y-2 text-gray-600">
+                        <li><strong>Mindfulness:</strong> Spend 5-10 minutes daily practicing deep breathing or meditation to lower cortisol.</li>
+                        <li><strong>Journaling:</strong> Writing down triggers helps identify patterns in your cycle-related mood changes.</li>
+                        <li><strong>Connection:</strong> Talk to friends or join support groups. Isolation worsens mental fatigue.</li>
+                    </ul>
                 `
             },
             {
@@ -284,16 +213,17 @@
                 description: "Thyroid function impacts your entire cycle.",
                 details: "Hypothyroidism can cause heavy periods, while hyperthyroidism can cause absent ones. Regular TSH screening is recommended.",
                 fullArticle: `
-                    <div class="space-y-4">
-                        <h4 class="font-bold text-xl text-rose-600">The Master Gland</h4>
-                        <p class="text-gray-600 leading-relaxed">The thyroid gland regulates metabolism, energy, and reproductive health. Disorders are 5-8 times more common in women than men.</p>
-                        
-                        <h4 class="font-bold text-xl text-rose-600">Common Conditions</h4>
-                        <ul class="list-disc pl-5 text-gray-600 space-y-2">
-                            <li><strong>Hypothyroidism (Underactive):</strong> Symptoms include weight gain, fatigue, heavy periods, and cold sensitivity.</li>
-                            <li><strong>Hyperthyroidism (Overactive):</strong> Symptoms include weight loss, anxiety, light periods, and heat intolerance.</li>
-                        </ul>
-                    </div>
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">The Master Gland</h4>
+                    <p class="mb-4 text-gray-600 leading-relaxed">The thyroid gland regulates metabolism, energy, and reproductive health. Disorders are 5-8 times more common in women than men.</p>
+                    
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">Common Conditions</h4>
+                    <ul class="list-disc pl-5 mb-4 space-y-2 text-gray-600">
+                        <li><strong>Hypothyroidism (Underactive):</strong> Symptoms include weight gain, fatigue, heavy periods, and cold sensitivity.</li>
+                        <li><strong>Hyperthyroidism (Overactive):</strong> Symptoms include weight loss, anxiety, light periods, and heat intolerance.</li>
+                    </ul>
+                    
+                    <h4 class="font-bold text-lg mb-2 text-rose-600">Dietary Tips</h4>
+                    <p class="text-gray-600">Ensure adequate Iodine intake (iodized salt) and Selenium (Brazil nuts, eggs) to support thyroid function.</p>
                 `
             }
         ];
@@ -323,10 +253,7 @@
             { icon: "utensils", title: "Iron Boost", text: "Eat spinach, lentils, or dark chocolate to replenish iron." }
         ];
 
-        // ==========================================
-        // 2. STATE MANAGEMENT
-        // ==========================================
-
+        // --- State Management ---
         const state = {
             user: null, 
             activeTab: 'dashboard',
@@ -347,28 +274,26 @@
 
             selectedDateDetails: null, 
             
-            // Learn Section
+            // Learn
             expandedTopicId: null,
-            activeArticle: null, 
+            activeArticle: null,
 
-            // Services & Doctor Chat
-            serviceView: 'menu', // 'menu', 'doctors', 'pharmacy', 'chat'
-            activeDoctor: null,
+            // Doctors
             bookedDoctors: [],
-            doctorChatMessages: {}, // { doctorId: [ {sender, type, text, ts} ] }
 
-            // Video/Voice Call State
+            // Services & Chat State
+            serviceView: 'menu', 
+            activeDoctor: null,
+            doctorChatMessages: {},
             isVideoCallActive: false,
-            callType: 'video',   // 'video' or 'audio'
-            
-            // Call Controls
-            isMuted: false,
-            isVideoPaused: false,
-            
-            // Mock Stream Object
             localStream: null,
 
-            // AI Assistant Chat
+            // Call State (NEW - Added for mic/video toggles)
+            isMuted: false,
+            isVideoPaused: false,
+            callType: 'video',
+
+            // Chat
             chatOpen: false,
             chatInput: '',
             chatMessages: [
@@ -376,10 +301,7 @@
             ]
         };
 
-        // ==========================================
-        // 3. HELPER FUNCTIONS
-        // ==========================================
-
+        // --- Helper: Toast Notification ---
         function showNotification(message) {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -388,7 +310,6 @@
             container.appendChild(toast);
             lucide.createIcons();
             
-            // Animate out
             setTimeout(() => {
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateY(-20px)';
@@ -397,14 +318,13 @@
             }, 3000);
         }
 
-        // Cycle Logic Engine
+        // --- Logic Engine for Cycle Tracking ---
         function getCycleStats() {
             const dates = Object.keys(state.cycleData).sort();
             if (dates.length === 0) return null;
 
             let lastStartDate = null;
             
-            // Find the most recent period start
             for (let i = dates.length - 1; i >= 0; i--) {
                 const dateKey = dates[i];
                 if (state.cycleData[dateKey].flow) {
@@ -443,25 +363,16 @@
             if (dayOfCycle >= 10 && dayOfCycle <= 16) fertility = 'High';
             if (dayOfCycle === 14) fertility = 'Peak';
 
-            return {
-                dayOfCycle,
-                phase,
-                daysUntilNext,
-                fertility,
-                lastStartDate,
-                nextPeriodDate
-            };
+            return { dayOfCycle, phase, daysUntilNext, fertility, lastStartDate, nextPeriodDate };
         }
 
         function isPredictedPeriod(targetDate) {
             const stats = getCycleStats();
             if (!stats) return false;
             if (targetDate <= stats.lastStartDate) return false;
-
             const diffTime = Math.abs(targetDate - stats.lastStartDate);
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             const dayInCycle = diffDays % state.cycleLength;
-
             return dayInCycle < state.periodLength;
         }
 
@@ -469,18 +380,13 @@
             const stats = getCycleStats();
             if (!stats) return false;
              if (targetDate <= stats.lastStartDate) return false;
-
             const diffTime = Math.abs(targetDate - stats.lastStartDate);
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             const dayInCycle = diffDays % state.cycleLength;
-
             return dayInCycle === 13;
         }
 
-        // ==========================================
-        // 4. MAIN RENDER LOOP
-        // ==========================================
-
+        // --- Main Render Function ---
         function render() {
             const app = document.getElementById('app');
             const chatContainer = document.getElementById('chat-container');
@@ -505,21 +411,13 @@
                     ${state.activeArticle ? renderArticleModal() : ''}
                 `;
                 renderChatWidget(); 
-                
-                // Render Video Call Overlay if Active
-                if(state.isVideoCallActive) {
-                    renderCallOverlay();
-                } else {
-                    videoContainer.innerHTML = '';
-                }
+                if(state.isVideoCallActive) renderVideoCallOverlay();
+                else videoContainer.innerHTML = '';
             }
-            
             lucide.createIcons();
         }
 
-        // ==========================================
-        // 5. VIEW COMPONENTS
-        // ==========================================
+        // --- Components ---
 
         function renderAuthScreen() {
              return `
@@ -539,7 +437,6 @@
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                                     <div class="relative">
                                         <i data-lucide="user" class="absolute left-3 top-3 w-5 h-5 text-gray-400"></i>
-                                        <!-- Removed required for custom validation -->
                                         <input type="text" value="${state.authName}" oninput="state.authName = this.value" class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none" placeholder="Jane Doe" />
                                     </div>
                                 </div>
@@ -560,9 +457,7 @@
                                         <input type="tel" value="${state.authPhone}" oninput="state.authPhone = this.value" class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none" placeholder="Enter your number" />
                                     </div>
                                 </div>
-                                <button type="submit" ${state.authLoading ? 'disabled' : ''} class="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-lg transition-colors flex justify-center items-center">
-                                    ${state.authLoading ? 'Sending...' : 'Send OTP'}
-                                </button>
+                                <button type="submit" ${state.authLoading ? 'disabled' : ''} class="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-lg transition-colors flex justify-center items-center">${state.authLoading ? 'Sending...' : 'Send OTP'}</button>
                             </form>
                         ` : `
                             <form onsubmit="handleVerifyOtp(event)" class="space-y-4">
@@ -574,9 +469,7 @@
                                     </div>
                                     <p class="text-xs text-right mt-1 text-rose-500 cursor-pointer hover:underline" onclick="state.authStep = 1; render()">Edit details?</p>
                                 </div>
-                                <button type="submit" ${state.authLoading ? 'disabled' : ''} class="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-lg transition-colors">
-                                    ${state.authLoading ? 'Verifying...' : 'Verify & Login'}
-                                </button>
+                                <button type="submit" ${state.authLoading ? 'disabled' : ''} class="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-lg transition-colors">${state.authLoading ? 'Verifying...' : 'Verify & Login'}</button>
                             </form>
                         `}
                     </div>
@@ -630,27 +523,22 @@
                 { id: 'health', icon: 'book-open', label: 'Learn' },
                 { id: 'services', icon: 'stethoscope', label: 'Services' }
             ];
-            
             const leftTabs = tabs.slice(0, 2);
             const rightTabs = tabs.slice(2);
-            
             const renderTab = (tab) => `
                 <button onclick="setActiveTab('${tab.id}')" class="flex flex-col items-center gap-1 ${state.activeTab === tab.id ? 'text-rose-600' : 'text-gray-400 hover:text-rose-400'} w-16">
                     <i data-lucide="${tab.icon}" width="24" height="24"></i>
                     <span class="text-[10px] font-medium">${tab.label}</span>
                 </button>
             `;
-
             return `
                 <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 flex justify-between items-end z-40 md:hidden h-20 pb-3">
                     <div class="flex gap-2">${leftTabs.map(renderTab).join('')}</div>
-                    
                     <div class="relative -top-6">
                         <button onclick="toggleChat()" class="bg-rose-500 hover:bg-rose-600 text-white w-16 h-16 rounded-full shadow-lg border-4 border-gray-50 flex items-center justify-center transition-transform active:scale-95">
                              <i data-lucide="message-circle" width="30" height="30"></i>
                         </button>
                     </div>
-
                     <div class="flex gap-2">${rightTabs.map(renderTab).join('')}</div>
                 </nav>
             `;
@@ -666,7 +554,6 @@
             }
         }
 
-        // --- Dashboard View ---
         function renderDashboardView() {
             const hour = new Date().getHours();
             let greeting = 'Good Morning';
@@ -789,7 +676,6 @@
             `;
         }
 
-        // --- Tracker View (Calendar) ---
         function renderTrackerView() {
             const year = state.currentDate.getFullYear();
             const month = state.currentDate.getMonth();
@@ -928,7 +814,6 @@
             `;
         }
 
-        // --- Learn View (Health Articles) ---
         function renderLearnView() {
              return `
                 <div class="space-y-4 fade-in">
@@ -990,7 +875,7 @@
             `;
         }
 
-        // --- SERVICES VIEW ---
+        // --- SERVICES VIEW (NEW) ---
         function renderServicesView() {
             if (state.serviceView === 'menu') return renderServicesMenu();
             if (state.serviceView === 'doctors') return renderDoctorsList();
@@ -1048,7 +933,7 @@
                     <div class="grid gap-4">
                         ${DOCTORS.map(doc => `
                             <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex gap-4">
-                                <img src="${doc.image}" alt="${doc.name}" class="w-16 h-16 rounded-full bg-gray-100 object-cover" />
+                                <img src="${doc.image || `https://ui-avatars.com/api/?name=${doc.name}&background=random`}" alt="${doc.name}" class="w-16 h-16 rounded-full bg-gray-100" />
                                 <div class="flex-1">
                                     <div class="flex justify-between items-start">
                                         <h3 class="font-bold text-gray-800">${doc.name}</h3>
@@ -1092,19 +977,18 @@
             `;
         }
 
-        // --- DOCTOR CHAT INTERFACE ---
+        // --- DOCTOR CHAT INTERFACE (FIXED) ---
         function renderDoctorChat() {
             const doctor = state.activeDoctor;
             const messages = state.doctorChatMessages[doctor.id] || [];
-            const inputValue = document.getElementById('doc-input')?.value || ''; 
-            const btnIcon = inputValue.trim().length > 0 ? 'send' : 'mic';
+            const inputValue = document.getElementById('doc-input')?.value || ''; // Preserve input state
             
             return `
                 <div class="flex flex-col h-[calc(100vh-160px)] md:h-[600px] bg-white rounded-xl overflow-hidden relative fade-in border border-gray-200">
                     <!-- Header -->
                     <div class="bg-rose-500 text-white p-3 flex items-center gap-3 shadow-md z-10">
                         <button onclick="setServiceView('doctors')"><i data-lucide="arrow-left"></i></button>
-                        <img src="${doctor.image}" class="w-10 h-10 rounded-full bg-gray-300 border-2 border-white/30" />
+                        <img src="${doctor.image || `https://ui-avatars.com/api/?name=${doctor.name}&background=random`}" class="w-10 h-10 rounded-full bg-gray-300 border-2 border-white/30" />
                         <div class="flex-1">
                             <h3 class="font-bold text-sm leading-tight">${doctor.name}</h3>
                             <p class="text-[10px] opacity-90">Online</p>
@@ -1117,13 +1001,17 @@
 
                     <!-- Messages Area -->
                     <div id="doc-chat-area" class="flex-1 overflow-y-auto p-4 space-y-2 relative bg-gray-50">
-                        <div class="flex justify-center mb-4"><span class="bg-yellow-100 text-yellow-800 text-xs py-1 px-3 rounded shadow-sm flex items-center gap-1"><i data-lucide="lock" width="10"></i> End-to-end encrypted.</span></div>
+                        <!-- Date Divider -->
+                        <div class="flex justify-center mb-4"><span class="bg-gray-200 text-gray-600 text-xs py-1 px-3 rounded shadow-sm">Today</span></div>
                         
+                        <!-- System Msg -->
+                        <div class="flex justify-center mb-4"><span class="bg-yellow-100 text-yellow-800 text-xs py-1 px-3 rounded shadow-sm flex items-center gap-1"><i data-lucide="lock" width="10"></i> Messages are end-to-end encrypted.</span></div>
+
                         ${messages.map(msg => `
                             <div class="flex flex-col ${msg.sender === 'me' ? 'items-end' : 'items-start'}">
                                 <div class="msg-bubble ${msg.sender === 'me' ? 'msg-sent' : 'msg-received'}">
                                     ${msg.type === 'image' ? `<img src="${msg.content}" class="rounded-lg max-w-[200px] mb-1"/>` : 
-                                      msg.type === 'audio' ? `<div class="flex items-center gap-2 min-w-[120px]"><i data-lucide="play" width="16"></i> <span>Audio 0:05</span></div>` :
+                                      msg.type === 'audio' ? `<div class="flex items-center gap-2 min-w-[150px]"><i data-lucide="play" width="16"></i> <div class="h-1 bg-gray-300 flex-1 rounded"></div> <span class="text-xs">Audio 0:05</span></div>` :
                                       msg.type === 'document' ? `<div class="flex items-center gap-2"><i data-lucide="file-text" width="16"></i> <span class="underline">Medical_Report.pdf</span></div>` :
                                       msg.text}
                                     <span class="text-[10px] opacity-70 float-right ml-2 mt-1 block">${new Date(msg.ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -1132,23 +1020,24 @@
                         `).join('')}
                     </div>
 
-                    <!-- Input Area -->
+                    <!-- Input Area (FIXED) -->
                     <div class="bg-white p-2 flex items-end gap-2 border-t border-gray-100">
                         <div class="bg-gray-100 flex-1 rounded-2xl flex items-center px-2 py-1 shadow-inner">
+                            <button class="p-2 text-gray-500 hover:text-rose-500"><i data-lucide="smile" width="20"></i></button>
                             <input type="text" id="doc-input" class="flex-1 bg-transparent border-none focus:ring-0 text-sm px-2 py-2 outline-none text-gray-800" placeholder="Message..." oninput="toggleSendIcon()" onkeypress="if(event.key === 'Enter') handleMainAction()" />
-                            <button class="p-2 text-gray-500 hover:text-rose-500" onclick="attachFile()"><i data-lucide="paperclip" width="20"></i></button>
+                            <button class="p-2 text-gray-500 hover:text-rose-500" onclick="attachFile('doc')"><i data-lucide="paperclip" width="20"></i></button>
                             <button class="p-2 text-gray-500 hover:text-rose-500" onclick="takePhoto()"><i data-lucide="camera" width="20"></i></button>
                         </div>
-                        <button id="main-chat-btn" class="bg-rose-500 text-white p-3 rounded-full shadow-md flex items-center justify-center hover:bg-rose-600 transition-transform active:scale-95" onclick="handleMainAction()">
-                            <i data-lucide="${btnIcon}" width="20"></i> 
+                        <button id="main-chat-btn" class="bg-rose-500 text-white p-3 rounded-full shadow-md flex items-center justify-center hover:bg-rose-600" onclick="handleMainAction()">
+                            <i data-lucide="mic" width="20"></i> 
                         </button>
                     </div>
                 </div>
             `;
         }
 
-        // --- UNIFIED CALL OVERLAY ---
-        function renderCallOverlay() {
+        // --- CALL OVERLAY (FIXED) ---
+        function renderVideoCallOverlay() {
             const container = document.getElementById('video-call-container');
             const isVideo = state.callType === 'video';
             
@@ -1156,29 +1045,29 @@
                 <div class="fixed inset-0 bg-gray-900 z-[60] flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
                     <div class="absolute top-10 left-0 right-0 text-center text-white z-10">
                         <h2 class="text-2xl font-bold mb-1">${state.activeDoctor.name}</h2>
-                        <p class="animate-pulse text-sm">${isVideo ? 'Video Calling...' : 'Voice Calling...'}</p>
+                        <p class="animate-pulse">${isVideo ? 'Video Calling...' : 'Voice Calling...'}</p>
                     </div>
                     
-                    <div class="w-full h-full flex items-center justify-center relative">
+                    <div class="w-full h-full bg-gray-800 flex items-center justify-center">
+                        <!-- Avatar shown if Audio Call OR Video is Muted locally -->
                         ${ (!isVideo || state.isVideoPaused) ? 
-                            `<div class="flex flex-col items-center"><img src="${state.activeDoctor.image}" class="w-32 h-32 rounded-full border-4 border-rose-500 shadow-2xl animate-pulse" /></div>` 
-                            : 
-                            `<div class="w-full h-full bg-gray-800 flex items-center justify-center text-white"><p>Remote Video Stream</p></div>`
+                            `<img src="${state.activeDoctor.image || `https://ui-avatars.com/api/?name=${state.activeDoctor.name}&background=random`}" class="w-32 h-32 rounded-full opacity-50 animate-pulse border-4 border-rose-500" />`
+                            : `<div class="text-white">Remote Video Stream</div>`
                         }
                     </div>
 
+                    <!-- Local Video Preview -->
                     ${ isVideo && !state.isVideoPaused ? 
-                        `<div class="absolute bottom-32 right-4 w-32 h-48 bg-black rounded-xl border-2 border-white overflow-hidden shadow-2xl">
+                        `<div class="absolute bottom-24 right-4 w-32 h-48 bg-black rounded-xl border-2 border-white overflow-hidden shadow-2xl">
                              <video id="localVideo" autoplay muted playsinline class="w-full h-full object-cover transform -scale-x-100"></video>
                         </div>` : '' 
                     }
 
-                    <div class="absolute bottom-10 flex justify-center gap-6 w-full">
-                        <button onclick="toggleMute()" class="${state.isMuted ? 'bg-white text-red-600 call-btn-active' : 'call-btn-inactive'} p-4 rounded-full call-btn"><i data-lucide="${state.isMuted ? 'mic-off' : 'mic'}" width="24"></i></button>
-                        
-                        <button onclick="endCall()" class="bg-red-600 p-4 rounded-full text-white shadow-lg hover:bg-red-700 transform hover:scale-110 call-btn"><i data-lucide="phone-off" width="32"></i></button>
-                        
-                        ${ isVideo ? `<button onclick="toggleVideo()" class="${state.isVideoPaused ? 'bg-white text-red-600 call-btn-active' : 'call-btn-inactive'} p-4 rounded-full call-btn"><i data-lucide="${state.isVideoPaused ? 'video-off' : 'video'}" width="24"></i></button>` : '' }
+                    <!-- Controls -->
+                    <div class="absolute bottom-8 left-0 right-0 flex justify-center gap-6">
+                        <button onclick="toggleMute()" class="${state.isMuted ? 'bg-white text-red-600' : 'bg-white/20 text-white'} p-4 rounded-full backdrop-blur-sm hover:bg-white/30 transition-colors"><i data-lucide="${state.isMuted ? 'mic-off' : 'mic'}" width="24"></i></button>
+                        <button onclick="endVideoCall()" class="bg-red-600 p-4 rounded-full text-white shadow-lg hover:bg-red-700 transform hover:scale-110 transition-all"><i data-lucide="phone-off" width="32"></i></button>
+                        ${ isVideo ? `<button onclick="toggleVideo()" class="${state.isVideoPaused ? 'bg-white text-red-600' : 'bg-white/20 text-white'} p-4 rounded-full backdrop-blur-sm hover:bg-white/30 transition-colors"><i data-lucide="${state.isVideoPaused ? 'video-off' : 'video'}" width="24"></i></button>` : '' }
                     </div>
                 </div>
             `;
@@ -1192,11 +1081,7 @@
                                 state.localStream = stream;
                                 if(video) video.srcObject = stream;
                             })
-                            .catch(err => {
-                                console.error("Camera denied", err);
-                                // Don't break the UI, just notify
-                                showNotification("Camera access denied by browser");
-                            });
+                            .catch(err => { console.error("Media Error", err); showNotification("Camera denied"); });
                     }
                 }, 100);
             }
@@ -1205,7 +1090,7 @@
         function renderChatWidget() {
             const container = document.getElementById('chat-container');
             if (state.chatOpen) {
-                container.className = "fixed bottom-24 left-4 right-4 z-50 md:bottom-10 md:right-10 md:left-auto md:w-80";
+                container.className = "fixed bottom-24 left-4 right-4 z-50 md:bottom-10 md:right-10 md:left-auto md:w-auto";
                 container.innerHTML = `
                     <div class="bg-white rounded-2xl shadow-2xl w-full md:w-80 h-96 flex flex-col overflow-hidden border border-rose-100 fade-in">
                         <div class="bg-rose-500 p-4 flex justify-between items-center text-white">
@@ -1216,12 +1101,12 @@
                             ${state.chatMessages.map(msg => `<div class="flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}"><div class="max-w-[80%] p-3 rounded-lg text-sm ${msg.sender === 'user' ? 'bg-rose-500 text-white rounded-br-none' : 'bg-white text-gray-800 shadow-sm rounded-bl-none border border-gray-100'}">${msg.text}</div></div>`).join('')}
                         </div>
                         <div class="p-3 bg-white border-t border-gray-100 flex gap-2">
-                            <input type="text" id="ai-input" class="flex-1 border border-gray-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-rose-500" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') sendAIMessage()" />
-                            <button onclick="sendAIMessage()" class="bg-rose-500 text-white p-2 rounded-full hover:bg-rose-600"><i data-lucide="send" width="16"></i></button>
+                            <input type="text" id="chat-input" value="${state.chatInput}" oninput="state.chatInput = this.value" onkeypress="if(event.key === 'Enter') sendMessage()" placeholder="Type a message..." class="flex-1 border border-gray-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-rose-500" />
+                            <button onclick="sendMessage()" class="bg-rose-500 text-white p-2 rounded-full hover:bg-rose-600"><i data-lucide="send" width="16"></i></button>
                         </div>
                     </div>
                 `;
-                setTimeout(() => { const el = document.getElementById('chat-messages'); if(el) el.scrollTop = el.scrollHeight; }, 10);
+                setTimeout(() => { const el = document.getElementById('chat-messages'); if(el) el.scrollTop = el.scrollHeight; document.getElementById('chat-input').focus(); }, 10);
             } else {
                 container.className = "fixed bottom-10 right-10 z-50 hidden md:block";
                 container.innerHTML = `<button onclick="toggleChat()" class="bg-rose-500 hover:bg-rose-600 text-white p-4 rounded-full shadow-lg transition-transform hover:scale-110 flex items-center justify-center"><i data-lucide="message-circle" width="28"></i></button>`;
@@ -1229,17 +1114,17 @@
             lucide.createIcons();
         }
 
-        // ==========================================
-        // 6. LOGIC HANDLERS
-        // ==========================================
+        // --- Logic & Event Handlers ---
 
         function handleSendOtp(e) {
             e.preventDefault();
             if (!state.authName.trim()) return showNotification("Please enter your name");
             if (!state.authAddress.trim()) return showNotification("Please enter your address");
             if (state.authPhone.length < 10) return showNotification("Please enter a valid mobile number");
+            
             state.authLoading = true;
             render();
+            
             setTimeout(() => {
                 state.authLoading = false;
                 state.authStep = 2;
@@ -1252,9 +1137,14 @@
             e.preventDefault();
             state.authLoading = true;
             render();
+
             setTimeout(() => {
                 if (state.authOtp === '1234') {
-                    state.user = { name: state.authName, address: state.authAddress, phone: state.authPhone };
+                    state.user = { 
+                        name: state.authName,
+                        address: state.authAddress,
+                        phone: state.authPhone 
+                    };
                 } else {
                     showNotification("Invalid OTP");
                 }
@@ -1264,75 +1154,109 @@
         }
 
         function fetchLocation() {
-            if (!navigator.geolocation) { return showNotification("Geolocation not supported"); }
-            showNotification("Locating...");
-            // Simulate delay
-            setTimeout(() => {
-                state.authAddress = "New York, USA";
-                render();
-            }, 800);
+            if (!navigator.geolocation) {
+                showNotification("Geolocation is not supported by your browser");
+                return;
+            }
+            const btn = document.querySelector('button[onclick="fetchLocation()"]');
+            if(btn) btn.innerHTML = '<i data-lucide="loader" class="animate-spin w-5 h-5"></i>';
+            lucide.createIcons();
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    state.authAddress = `Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}`;
+                    render(); 
+                },
+                (error) => {
+                    console.error(error);
+                    showNotification("Unable to retrieve location. Please enter manually.");
+                    render(); 
+                }
+            );
         }
 
         function setActiveTab(tab) { state.activeTab = tab; render(); }
         function changeMonth(delta) {
-            state.currentDate.setMonth(state.currentDate.getMonth() + delta);
+            const newDate = new Date(state.currentDate);
+            newDate.setMonth(newDate.getMonth() + delta);
+            state.currentDate = newDate;
             render();
         }
+
         function handleDateClick(day) {
-            const dateKey = `${state.currentDate.getFullYear()}-${state.currentDate.getMonth()}-${day}`;
+            const year = state.currentDate.getFullYear();
+            const month = state.currentDate.getMonth();
+            const dateKey = `${year}-${month}-${day}`;
             state.selectedDateDetails = { dateKey, day, data: state.cycleData[dateKey] || { flow: '', symptoms: [] } };
             render();
         }
+
         function closeModal() { state.selectedDateDetails = null; render(); }
-        function updateModalData(key, value) { state.selectedDateDetails.data[key] = value; render(); }
+
+        function updateModalData(key, value) {
+            if (state.selectedDateDetails) {
+                state.selectedDateDetails.data[key] = value;
+                render();
+            }
+        }
+
         function toggleSymptom(sym) {
-            const current = state.selectedDateDetails.data.symptoms || [];
-            if (current.includes(sym)) state.selectedDateDetails.data.symptoms = current.filter(s => s !== sym);
-            else state.selectedDateDetails.data.symptoms = [...current, sym];
-            render();
+            if (state.selectedDateDetails) {
+                const current = state.selectedDateDetails.data.symptoms || [];
+                if (current.includes(sym)) state.selectedDateDetails.data.symptoms = current.filter(s => s !== sym);
+                else state.selectedDateDetails.data.symptoms = [...current, sym];
+                render();
+            }
         }
+
         function saveLog() {
-            state.cycleData[state.selectedDateDetails.dateKey] = state.selectedDateDetails.data;
-            state.selectedDateDetails = null;
-            render();
+            if (state.selectedDateDetails) {
+                state.cycleData[state.selectedDateDetails.dateKey] = state.selectedDateDetails.data;
+                state.selectedDateDetails = null;
+                render();
+            }
         }
+
         function logPeriodStartToday() {
             const today = new Date();
             const dateKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
             state.cycleData[dateKey] = { flow: 'Medium', symptoms: [] };
-            showNotification("Period start logged!");
+            showNotification("Period start logged for today!");
             render();
         }
+
         function toggleTopic(id) { state.expandedTopicId = state.expandedTopicId === id ? null : id; render(); }
         function openArticle(id) { state.activeArticle = id; render(); }
         function closeArticle() { state.activeArticle = null; render(); }
+
+        function bookDoctor(id) { if (!state.bookedDoctors.includes(id)) { state.bookedDoctors.push(id); showNotification("Tele-consultation request sent! The clinic will call you shortly."); render(); } }
         function toggleChat() { state.chatOpen = !state.chatOpen; renderChatWidget(); }
-        
-        function sendAIMessage() {
-            const input = document.getElementById('ai-input');
-            const text = input.value.trim();
-            if(!text) return;
-            state.chatMessages.push({id: Date.now(), sender:'user', text});
-            input.value = '';
+
+        function sendMessage() {
+            const text = state.chatInput.trim();
+            if (!text) return;
+            state.chatMessages.push({ id: Date.now(), sender: 'user', text });
+            state.chatInput = '';
             renderChatWidget();
             setTimeout(() => {
-                state.chatMessages.push({id: Date.now(), sender:'bot', text: "I can help with that! Check the 'Learn' section for detailed guides."});
+                let botResponse = "I recommend consulting a specialist for that specific issue.";
+                const lowerInput = text.toLowerCase();
+                if (lowerInput.includes('cramp') || lowerInput.includes('pain')) botResponse = SYMPTOMS_ADVICE['Cramps'];
+                else if (lowerInput.includes('bloat')) botResponse = SYMPTOMS_ADVICE['Bloating'];
+                else if (lowerInput.includes('doctor')) botResponse = "You can find local specialists in the 'Doctors' tab.";
+                else if (lowerInput.includes('period')) botResponse = "Make sure to log your period dates in the Calendar for accurate predictions.";
+                else if (lowerInput.includes('hi') || lowerInput.includes('hello')) botResponse = "Hello! Ask me about symptoms, cycle tracking, or finding a doctor.";
+                state.chatMessages.push({ id: Date.now() + 1, sender: 'bot', text: botResponse });
                 renderChatWidget();
-            }, 800);
+            }, 1000);
         }
 
-        // Service & Chat Logic
+        // --- New Service Logic ---
         function setServiceView(view) { state.serviceView = view; render(); }
-        function openDoctorChat(id) {
-             state.activeDoctor = DOCTORS.find(d => d.id === id);
-             state.serviceView = 'chat';
-             render();
-             setTimeout(() => {
-                 const el = document.getElementById('doc-chat-area');
-                 if(el) el.scrollTop = el.scrollHeight;
-             }, 50);
-        }
+        function openDoctorChat(id) { state.activeDoctor = DOCTORS.find(d => d.id === id); state.serviceView = 'chat'; render(); setTimeout(() => { const el = document.getElementById('doc-chat-area'); if(el) el.scrollTop = el.scrollHeight; }, 50); }
         
+        // Chat & Media Actions
         function toggleSendIcon() {
             const val = document.getElementById('doc-input').value.trim();
             const btn = document.getElementById('main-chat-btn');
@@ -1341,98 +1265,80 @@
                 lucide.createIcons();
             }
         }
-        
+
         function handleMainAction() {
             const input = document.getElementById('doc-input');
-            if (input.value.trim().length > 0) sendDoctorMessage();
-            else sendVoiceNote();
+            if (input.value.trim().length > 0) sendDoctorMessage(); else sendVoiceNote();
         }
-        
+
         function sendDoctorMessage() {
             const input = document.getElementById('doc-input');
             const text = input.value.trim();
-            if(!text) return;
-            const id = state.activeDoctor.id;
-            if(!state.doctorChatMessages[id]) state.doctorChatMessages[id] = [];
-            
-            state.doctorChatMessages[id].push({sender:'me', text, type:'text', ts: Date.now()});
+            if(!text) return; 
+            const docId = state.activeDoctor.id;
+            if (!state.doctorChatMessages[docId]) state.doctorChatMessages[docId] = [];
+            state.doctorChatMessages[docId].push({ sender: 'me', text: text, type: 'text', ts: Date.now() });
             input.value = '';
             toggleSendIcon();
-            // Re-render logic: Update only chat area ideally, but full render safe here
             render();
             setTimeout(() => {
-                state.doctorChatMessages[id].push({sender:'them', text: "Thank you for your message. How can I assist?", type:'text', ts: Date.now()});
-                render();
-            }, 1000);
+                 state.doctorChatMessages[docId].push({ sender: 'them', text: "Hello! I've received your message. How can I help?", type: 'text', ts: Date.now() });
+                 render();
+                 const el = document.getElementById('doc-chat-area');
+                 if(el) el.scrollTop = el.scrollHeight;
+            }, 1500);
         }
-        
+
         function sendVoiceNote() {
             showNotification("Recording Audio...");
-            setTimeout(() => {
-                const id = state.activeDoctor.id;
-                if(!state.doctorChatMessages[id]) state.doctorChatMessages[id] = [];
-                state.doctorChatMessages[id].push({sender:'me', type:'audio', ts: Date.now()});
-                render();
+            setTimeout(()=>{
+                const id=state.activeDoctor.id; if(!state.doctorChatMessages[id]) state.doctorChatMessages[id]=[];
+                state.doctorChatMessages[id].push({sender:'me', type:'audio', ts:Date.now()}); render();
             }, 1000);
         }
-        
+
         function attachFile() {
-            const id = state.activeDoctor.id;
-            if(!state.doctorChatMessages[id]) state.doctorChatMessages[id] = [];
-            state.doctorChatMessages[id].push({sender:'me', type:'document', ts: Date.now()});
-            render();
+            const id=state.activeDoctor.id; if(!state.doctorChatMessages[id]) state.doctorChatMessages[id]=[];
+            state.doctorChatMessages[id].push({sender:'me', type:'document', ts:Date.now()}); render(); 
         }
-        
+
         function takePhoto() {
-            const id = state.activeDoctor.id;
-            if(!state.doctorChatMessages[id]) state.doctorChatMessages[id] = [];
-            state.doctorChatMessages[id].push({
-                sender:'me', 
-                content:'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=300&auto=format&fit=crop', 
-                type:'image', 
-                ts: Date.now()
-            });
+            const docId = state.activeDoctor.id;
+            if (!state.doctorChatMessages[docId]) state.doctorChatMessages[docId] = [];
+            const mockImg = "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=300&auto=format&fit=crop";
+            state.doctorChatMessages[docId].push({ sender: 'me', content: mockImg, type: 'image', ts: Date.now() });
             render();
         }
 
+        // Call Logic
         function startCall(type) {
-            state.callType = type;
-            state.isVideoCallActive = true;
-            state.isMuted = false;
-            state.isVideoPaused = false;
+            state.callType = type; state.isCallActive = true; state.isMuted = false; state.isVideoPaused = false;
             render();
         }
-        
-        // Live Control Handlers
+
         function toggleMute() {
             state.isMuted = !state.isMuted;
-            if(state.localStream) {
-                state.localStream.getAudioTracks().forEach(track => track.enabled = !state.isMuted);
-            }
-            renderCallOverlay(); // Targeted re-render to avoid stream flicker
+            if(state.localStream) state.localStream.getAudioTracks().forEach(t => t.enabled = !state.isMuted);
+            render();
         }
-        
+
         function toggleVideo() {
             state.isVideoPaused = !state.isVideoPaused;
-            if(state.localStream) {
-                state.localStream.getVideoTracks().forEach(track => track.enabled = !state.isVideoPaused);
-            }
-            renderCallOverlay();
+            if(state.localStream) state.localStream.getVideoTracks().forEach(t => t.enabled = !state.isVideoPaused);
+            render();
         }
-        
-        function endCall() {
-            state.isVideoCallActive = false;
+
+        function endVideoCall() {
+            state.isVideoCallActive = false; // Ensure state is reset
+            state.isCallActive = false; // Ensure general call state is reset
             if(state.localStream) {
                 state.localStream.getTracks().forEach(track => track.stop());
                 state.localStream = null;
             }
-            document.getElementById('video-call-container').innerHTML = '';
-            render(); // Restore main view
+            render();
         }
 
-        // Initial Boot
         render();
-
     </script>
 </body>
 </html>
