@@ -45,6 +45,11 @@
             from { transform: scale(0.95); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
         }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(244, 63, 94, 0); }
+            100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+        }
 
         /* Chat Message Bubbles */
         .msg-bubble {
@@ -120,24 +125,6 @@
             color: white;
             backdrop-filter: blur(4px);
         }
-
-        /* Cart Badge */
-        .cart-badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background-color: #ef4444;
-            color: white;
-            border-radius: 9999px;
-            width: 18px;
-            height: 18px;
-            font-size: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            border: 2px solid white;
-        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen relative pb-20 md:pb-0">
@@ -194,14 +181,10 @@
             },
         ];
 
-        // NEW: Medicines for E-commerce Store
-        const MEDICINES = [
-            { id: 101, name: "Paracetamol 650", type: "Tablet", price: 30, image: "https://ui-avatars.com/api/?name=P&background=e11d48&color=fff&size=128&font-size=0.5" },
-            { id: 102, name: "Sanitary Pads XL", type: "Hygiene", price: 199, image: "https://ui-avatars.com/api/?name=S&background=ec4899&color=fff&size=128&font-size=0.5" },
-            { id: 103, name: "Iron & Folic Acid", type: "Supplement", price: 150, image: "https://ui-avatars.com/api/?name=Fe&background=22c55e&color=fff&size=128&font-size=0.5" },
-            { id: 104, name: "Hot Water Bag", type: "Pain Relief", price: 299, image: "https://ui-avatars.com/api/?name=H&background=f97316&color=fff&size=128&font-size=0.5" },
-            { id: 105, name: "PCOS Balance Tea", type: "Wellness", price: 450, image: "https://ui-avatars.com/api/?name=T&background=a855f7&color=fff&size=128&font-size=0.5" },
-            { id: 106, name: "Vitamin D3", type: "Supplement", price: 120, image: "https://ui-avatars.com/api/?name=D3&background=eab308&color=fff&size=128&font-size=0.5" },
+        const PHARMACIES = [
+            { id: 1, name: "City Health Pharmacy", distance: "0.5 km", rating: 4.8, open: true },
+            { id: 2, name: "Green Cross Chemist", distance: "1.2 km", rating: 4.5, open: true },
+            { id: 3, name: "Wellness Meds", distance: "2.5 km", rating: 4.9, open: false },
         ];
 
         const HEALTH_TOPICS = [
@@ -369,13 +352,10 @@
             activeArticle: null, 
 
             // Services & Doctor Chat
-            serviceView: 'menu', // 'menu', 'doctors', 'pharmacy', 'chat', 'cart'
+            serviceView: 'menu', // 'menu', 'doctors', 'pharmacy', 'chat'
             activeDoctor: null,
             bookedDoctors: [],
-            doctorChatMessages: {}, 
-            
-            // Pharmacy Cart
-            cart: [],
+            doctorChatMessages: {}, // { doctorId: [ {sender, type, text, ts} ] }
 
             // Video/Voice Call State
             isVideoCallActive: false,
@@ -495,35 +475,6 @@
             const dayInCycle = diffDays % state.cycleLength;
 
             return dayInCycle === 13;
-        }
-
-        // Pharmacy Logic
-        function addToCart(item) {
-            const existingItem = state.cart.find(i => i.id === item.id);
-            if(existingItem) {
-                existingItem.qty += 1;
-            } else {
-                state.cart.push({...item, qty: 1});
-            }
-            showNotification("Added to Cart");
-            render();
-        }
-
-        function removeFromCart(id) {
-            state.cart = state.cart.filter(i => i.id !== id);
-            render();
-        }
-
-        function placeOrder() {
-            if(state.cart.length === 0) {
-                showNotification("Cart is empty");
-                return;
-            }
-            // Simulate API call
-            state.cart = [];
-            state.serviceView = 'pharmacy';
-            showNotification("Order Placed Successfully!");
-            render();
         }
 
         // ==========================================
@@ -1043,8 +994,7 @@
         function renderServicesView() {
             if (state.serviceView === 'menu') return renderServicesMenu();
             if (state.serviceView === 'doctors') return renderDoctorsList();
-            if (state.serviceView === 'pharmacy') return renderPharmacyStore(); // CHANGED to Store
-            if (state.serviceView === 'cart') return renderCart(); // Added Cart
+            if (state.serviceView === 'pharmacy') return renderPharmacyList();
             if (state.serviceView === 'chat') return renderDoctorChat();
             return renderServicesMenu();
         }
@@ -1070,7 +1020,7 @@
                                 <i data-lucide="pill" width="32" height="32"></i>
                             </div>
                             <div>
-                                <h3 class="font-bold text-lg text-gray-800">Medical Store</h3>
+                                <h3 class="font-bold text-lg text-gray-800">Pharmacy</h3>
                                 <p class="text-sm text-gray-500">Order medicines & essentials</p>
                             </div>
                             <i data-lucide="chevron-right" class="ml-auto text-gray-300"></i>
@@ -1119,94 +1069,25 @@
             `;
         }
 
-        // --- PHARMACY STORE (E-COMMERCE) ---
-        function renderPharmacyStore() {
-            const cartCount = state.cart.reduce((acc, item) => acc + item.qty, 0);
+        function renderPharmacyList() {
             return `
-                <div class="space-y-4 fade-in h-full">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="flex items-center gap-2">
-                            <button onclick="setServiceView('menu')" class="p-2 hover:bg-gray-100 rounded-full"><i data-lucide="arrow-left"></i></button>
-                            <h2 class="text-2xl font-bold text-gray-800">Pharmacy</h2>
-                        </div>
-                        <button onclick="setServiceView('cart')" class="relative p-2 bg-white border rounded-full shadow-sm hover:bg-gray-50">
-                            <i data-lucide="shopping-cart" class="text-gray-700"></i>
-                            ${cartCount > 0 ? `<span class="cart-badge">${cartCount}</span>` : ''}
-                        </button>
+                <div class="space-y-4 fade-in">
+                    <div class="flex items-center gap-2 mb-4">
+                        <button onclick="setServiceView('menu')" class="p-2 hover:bg-gray-200 rounded-full"><i data-lucide="arrow-left"></i></button>
+                        <h2 class="text-2xl font-bold text-gray-800">Pharmacies</h2>
                     </div>
-
-                    <div class="relative">
-                        <input type="text" placeholder="Search medicines..." class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-rose-500 outline-none" />
-                        <i data-lucide="search" class="absolute left-3 top-3.5 text-gray-400 w-5"></i>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-3 pb-20">
-                        ${MEDICINES.map(m => `
-                            <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col">
-                                <img src="${m.image}" class="w-full h-24 object-contain bg-gray-50 rounded-lg mb-2" />
-                                <h3 class="font-bold text-sm text-gray-800 line-clamp-1">${m.name}</h3>
-                                <p class="text-xs text-gray-500 mb-2">${m.type}</p>
-                                <div class="mt-auto flex items-center justify-between">
-                                    <span class="font-bold text-rose-600">₹${m.price}</span>
-                                    <button onclick='addToCart(${JSON.stringify(m)})' class="bg-rose-100 text-rose-600 p-1.5 rounded-lg hover:bg-rose-200">
-                                        <i data-lucide="plus" width="16"></i>
-                                    </button>
+                    <div class="grid gap-4">
+                        ${PHARMACIES.map(p => `
+                            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                                <div class="flex justify-between">
+                                    <h3 class="font-bold text-gray-800">${p.name}</h3>
+                                    <span class="text-xs px-2 py-1 rounded-full ${p.open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${p.open ? 'Open' : 'Closed'}</span>
                                 </div>
+                                <p class="text-sm text-gray-500 mt-1">${p.distance} away • ⭐ ${p.rating}</p>
+                                <button class="w-full mt-3 border border-gray-200 py-2 rounded-lg text-sm font-semibold hover:bg-gray-50">Order Medicines</button>
                             </div>
                         `).join('')}
                     </div>
-
-                    <!-- Floating "Request Medicine" Button -->
-                    <button onclick="showNotification('Request sent to pharmacist!')" class="fixed bottom-24 right-6 bg-green-600 text-white px-4 py-3 rounded-full shadow-lg flex items-center gap-2 font-bold z-40 hover:bg-green-700 transition-transform active:scale-95">
-                        <i data-lucide="plus-circle"></i> Request Meds
-                    </button>
-                </div>
-            `;
-        }
-
-        function renderCart() {
-            const total = state.cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-            return `
-                <div class="space-y-4 fade-in h-full flex flex-col">
-                    <div class="flex items-center gap-2 mb-2">
-                        <button onclick="setServiceView('pharmacy')" class="p-2 hover:bg-gray-100 rounded-full"><i data-lucide="arrow-left"></i></button>
-                        <h2 class="text-2xl font-bold text-gray-800">Your Cart</h2>
-                    </div>
-
-                    <div class="flex-1 overflow-y-auto space-y-3 pb-4">
-                        ${state.cart.length === 0 ? 
-                            `<div class="text-center py-10 text-gray-400 flex flex-col items-center">
-                                <i data-lucide="shopping-bag" width="48" height="48" class="mb-2 opacity-50"></i>
-                                <p>Cart is empty</p>
-                                <button onclick="setServiceView('pharmacy')" class="mt-4 text-rose-500 font-bold">Browse Medicines</button>
-                             </div>` 
-                            : 
-                            state.cart.map(item => `
-                                <div class="bg-white p-4 rounded-xl border flex justify-between items-center">
-                                    <div>
-                                        <h4 class="font-bold text-gray-800">${item.name}</h4>
-                                        <p class="text-sm text-gray-500">₹${item.price} x ${item.qty}</p>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <span class="font-bold text-lg">₹${item.price * item.qty}</span>
-                                        <button onclick="removeFromCart(${item.id})" class="text-red-400 hover:text-red-600"><i data-lucide="trash-2" width="18"></i></button>
-                                    </div>
-                                </div>
-                            `).join('')
-                        }
-                    </div>
-
-                    ${state.cart.length > 0 ? `
-                        <div class="bg-white p-4 rounded-t-2xl shadow-lg border-t border-gray-100">
-                            <div class="flex justify-between mb-4 text-lg font-bold">
-                                <span>Total</span>
-                                <span>₹${total}</span>
-                            </div>
-                            <button onclick="placeOrder()" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 shadow-md transition-transform active:scale-95">
-                                Place Order
-                            </button>
-                        </div>
-                    ` : ''}
                 </div>
             `;
         }
@@ -1243,7 +1124,7 @@
                                 <div class="msg-bubble ${msg.sender === 'me' ? 'msg-sent' : 'msg-received'}">
                                     ${msg.type === 'image' ? `<img src="${msg.content}" class="rounded-lg max-w-[200px] mb-1"/>` : 
                                       msg.type === 'audio' ? `<div class="flex items-center gap-2 min-w-[120px]"><i data-lucide="play" width="16"></i> <span>Audio 0:05</span></div>` :
-                                      msg.type === 'document' ? `<div class="flex items-center gap-2"><i data-lucide="file-text" width="16"></i> <span class="underline">${msg.text}</span></div>` :
+                                      msg.type === 'document' ? `<div class="flex items-center gap-2"><i data-lucide="file-text" width="16"></i> <span class="underline">Medical_Report.pdf</span></div>` :
                                       msg.text}
                                     <span class="text-[10px] opacity-70 float-right ml-2 mt-1 block">${new Date(msg.ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                 </div>
@@ -1255,10 +1136,6 @@
                     <div class="bg-white p-2 flex items-end gap-2 border-t border-gray-100">
                         <div class="bg-gray-100 flex-1 rounded-2xl flex items-center px-2 py-1 shadow-inner">
                             <input type="text" id="doc-input" class="flex-1 bg-transparent border-none focus:ring-0 text-sm px-2 py-2 outline-none text-gray-800" placeholder="Message..." oninput="toggleSendIcon()" onkeypress="if(event.key === 'Enter') handleMainAction()" />
-                            
-                            <!-- Hidden File Input -->
-                            <input type="file" id="hidden-file-input" class="hidden" onchange="handleFileInputChange(this)" />
-
                             <button class="p-2 text-gray-500 hover:text-rose-500" onclick="attachFile()"><i data-lucide="paperclip" width="20"></i></button>
                             <button class="p-2 text-gray-500 hover:text-rose-500" onclick="takePhoto()"><i data-lucide="camera" width="20"></i></button>
                         </div>
@@ -1317,6 +1194,7 @@
                             })
                             .catch(err => {
                                 console.error("Camera denied", err);
+                                // Don't break the UI, just notify
                                 showNotification("Camera access denied by browser");
                             });
                     }
@@ -1480,6 +1358,7 @@
             state.doctorChatMessages[id].push({sender:'me', text, type:'text', ts: Date.now()});
             input.value = '';
             toggleSendIcon();
+            // Re-render logic: Update only chat area ideally, but full render safe here
             render();
             setTimeout(() => {
                 state.doctorChatMessages[id].push({sender:'them', text: "Thank you for your message. How can I assist?", type:'text', ts: Date.now()});
@@ -1496,52 +1375,26 @@
                 render();
             }, 1000);
         }
-
-        // --- NEW FILE HANDLING LOGIC ---
+        
         function attachFile() {
-            const input = document.getElementById('hidden-file-input');
-            input.setAttribute('accept', '*/*'); 
-            input.click();
+            const id = state.activeDoctor.id;
+            if(!state.doctorChatMessages[id]) state.doctorChatMessages[id] = [];
+            state.doctorChatMessages[id].push({sender:'me', type:'document', ts: Date.now()});
+            render();
         }
         
         function takePhoto() {
-            const input = document.getElementById('hidden-file-input');
-            input.setAttribute('accept', 'image/*');
-            input.click();
+            const id = state.activeDoctor.id;
+            if(!state.doctorChatMessages[id]) state.doctorChatMessages[id] = [];
+            state.doctorChatMessages[id].push({
+                sender:'me', 
+                content:'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=300&auto=format&fit=crop', 
+                type:'image', 
+                ts: Date.now()
+            });
+            render();
         }
 
-        function handleFileInputChange(input) {
-            const file = input.files[0];
-            if (!file) return;
-            
-            const docId = state.activeDoctor.id;
-            if (!state.doctorChatMessages[docId]) state.doctorChatMessages[docId] = [];
-            
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    state.doctorChatMessages[docId].push({
-                        sender: 'me',
-                        type: 'image',
-                        content: e.target.result, 
-                        ts: Date.now()
-                    });
-                    render();
-                };
-                reader.readAsDataURL(file);
-            } else {
-                state.doctorChatMessages[docId].push({
-                    sender: 'me',
-                    type: 'document',
-                    text: file.name, 
-                    ts: Date.now()
-                });
-                render();
-            }
-            input.value = '';
-        }
-
-        // Call Logic
         function startCall(type) {
             state.callType = type;
             state.isVideoCallActive = true;
@@ -1550,12 +1403,13 @@
             render();
         }
         
+        // Live Control Handlers
         function toggleMute() {
             state.isMuted = !state.isMuted;
             if(state.localStream) {
                 state.localStream.getAudioTracks().forEach(track => track.enabled = !state.isMuted);
             }
-            renderCallOverlay();
+            renderCallOverlay(); // Targeted re-render to avoid stream flicker
         }
         
         function toggleVideo() {
@@ -1573,19 +1427,7 @@
                 state.localStream = null;
             }
             document.getElementById('video-call-container').innerHTML = '';
-            render(); 
-        }
-
-        // Pharmacy Logic
-        function addToCart(item) {
-            const existing = state.cart.find(i => i.id === item.id);
-            if(existing) existing.qty += 1; else state.cart.push({ ...item, qty: 1 });
-            showNotification("Added to Cart!"); render();
-        }
-        function removeFromCart(id) { state.cart = state.cart.filter(i => i.id !== id); render(); }
-        function placeOrder() {
-            if(state.cart.length === 0) return showNotification("Cart is empty!");
-            state.cart = []; state.serviceView = 'pharmacy'; showNotification("Order Placed Successfully!"); render();
+            render(); // Restore main view
         }
 
         // Initial Boot
