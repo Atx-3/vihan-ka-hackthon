@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Healthy Her</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* --- GLOBAL STYLES --- */
+        body {
+            -webkit-tap-highlight-color: transparent;
+            background-color: #f9fafb;
+        }
+
+        /* Custom scrollbar for chat areas */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.4s ease-in-out;
+        }
+        .slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
+        .zoom-in {
+            animation: zoomIn 0.2s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        @keyframes zoomIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* Chat Message Bubbles */
+        .msg-bubble {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            position: relative;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            word-wrap: break-word;
+        }
+        .msg-sent {
+            background-color: #f43f5e; /* Rose-500 */
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .msg-received {
+            background-color: white;
+            color: #374151; /* Gray-700 */
+            align-self: flex-start;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Toast Notification */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+            width: 90%;
+            max-width: 350px;
+        }
+        .toast {
+            background: #1f2937; /* Gray-800 */
+            color: white;
+            padding: 12px 20px;
+            border-radius: 50px;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideDown 0.3s ease-out forwards;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Call Controls */
+        .call-btn {
+            transition: all 0.2s ease;
+        }
+        .call-btn:active {
+            transform: scale(0.9);
+        }
+        .call-btn-active {
+            background-color: white;
+            color: #dc2626; /* Red-600 */
+        }
+        .call-btn-inactive {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            backdrop-filter: blur(4px);
+        }
+
+        /* Cart Badge */
+        .cart-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background-color: #ef4444;
+            color: white;
+            border-radius: 9999px;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            border: 2px solid white;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen relative pb-20 md:pb-0">
+
+    <!-- App Root Container -->
+    <div id="app"></div>
+
+    <!-- Global Floating Containers -->
+    <div id="chat-container"></div>
+    <div id="video-call-container"></div> <!-- Unified container for both Voice & Video -->
+    <div id="toast-container"></div>
+
+    <script>
+        // ==========================================
+        // 1. DATA & CONSTANTS
+        // ==========================================
+
+        const DOCTORS = [
+            { 
+                id: 1, 
+                name: "Dr. Sarah Johnson", 
+                specialty: "Gynecologist", 
+                rating: 4.9, 
+                distance: "1.2 km", 
+                available: true, 
+                image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah&backgroundColor=c0aede" 
+            },
+            { 
+                id: 2, 
+                name: "Dr. Emily Chen", 
+                specialty: "Endocrinologist (PCOS)", 
+                rating: 4.8, 
+                distance: "3.5 km", 
+                available: false, 
+                image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Emily&backgroundColor=ffdfbf" 
+            },
+            { 
+                id: 3, 
+                name: "Dr. Priya Patel", 
+                specialty: "Gen. Physician", 
+                rating: 4.7, 
+                distance: "0.8 km", 
+                available: true, 
+                image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Priya&backgroundColor=b6e3f4" 
+            },
+            { 
+                id: 4, 
+                name: "Dr. Anita Roy", 
+                specialty: "Therapist", 
+                rating: 4.9, 
+                distance: "2.0 km", 
+                available: true, 
+                image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Anita&backgroundColor=ffdfbf" 
+            },
+        ];
+
+        // NEW: Medicines for E-commerce Store
+        const MEDICINES = [
+            { id: 101, name: "Paracetamol 650", type: "Tablet", price: 30, image: "https://ui-avatars.com/api/?name=P&background=e11d48&color=fff&size=128&font-size=0.5" },
+            { id: 102, name: "Sanitary Pads XL", type: "Hygiene", price: 199, image: "https://ui-avatars.com/api/?name=S&background=ec4899&color=fff&size=128&font-size=0.5" },
+            { id: 103, name: "Iron & Folic Acid", type: "Supplement", price: 150, image: "https://ui-avatars.com/api/?name=Fe&background=22c55e&color=fff&size=128&font-size=0.5" },
+            { id: 104, name: "Hot Water Bag", type: "Pain Relief", price: 299, image: "https://ui-avatars.com/api/?name=H&background=f97316&color=fff&size=128&font-size=0.5" },
+            { id: 105, name: "PCOS Balance Tea", type: "Wellness", price: 450, image: "https://ui-avatars.com/api/?name=T&background=a855f7&color=fff&size=128&font-size=0.5" },
+            { id: 106, name: "Vitamin D3", type: "Supplement", price: 120, image: "https://ui-avatars.com/api/?name=D3&background=eab308&color=fff&size=128&font-size=0.5" },
+        ];
+
+        const HEALTH_TOPICS = [
+            {
+                id: 'pcos',
+                title: "PCOS Awareness",
+                icon: "activity",
+                color: "text-purple-500",
+                description: "Polycystic Ovary Syndrome affects hormone levels.",
+                details: "Common symptoms include irregular periods, excess androgen, and polycystic ovaries. Management includes diet changes, exercise, and medication.",
+                fullArticle: `
+                    <div class="space-y-4">
+                        <h4 class="font-bold text-xl text-rose-600">Understanding PCOS</h4>
+                        <p class="text-gray-600 leading-relaxed">Polycystic Ovary Syndrome (PCOS) is a hormonal disorder causing enlarged ovaries with small cysts on the outer edges. The cause isn't well understood, but may involve a combination of genetic and environmental factors.</p>
+                        
+                        <h4 class="font-bold text-xl text-rose-600">Lifestyle Management</h4>
+                        <ul class="list-disc pl-5 text-gray-600 space-y-2">
+                            <li><strong>Low-GI Diet:</strong> Focus on whole grains, fresh vegetables, and lean proteins to manage insulin levels.</li>
+                            <li><strong>Regular Exercise:</strong> Aim for 30 minutes of moderate activity daily to help regulate blood sugar and weight.</li>
+                            <li><strong>Sleep:</strong> Prioritize 7-8 hours of sleep as poor sleep can disrupt hormones further.</li>
+                        </ul>
+
+                        <h4 class="font-bold text-xl text-rose-600">When to See a Doctor</h4>
+                        <p class="text-gray-600">If you have missed periods and aren't pregnant, or experience symptoms like excess hair growth (hirsutism), severe acne, or unexplained weight gain, consult a specialist.</p>
+                    </div>
+                `
+            },
+            {
+                id: 'breast',
+                title: "Breast Health",
+                icon: "heart",
+                color: "text-pink-500",
+                description: "Regular self-exams are crucial for early detection.",
+                details: "Perform a self-exam once a month, preferably a few days after your period ends. Look for lumps, skin dimpling, or changes in size.",
+                fullArticle: `
+                    <div class="space-y-4">
+                        <h4 class="font-bold text-xl text-rose-600">The Importance of Self-Exams</h4>
+                        <p class="text-gray-600 leading-relaxed">40% of diagnosed breast cancers are detected by women who feel a lump. Establishing a regular self-exam routine is crucial for early detection and successful treatment.</p>
+                        
+                        <h4 class="font-bold text-xl text-rose-600">Step-by-Step Guide</h4>
+                        <ol class="list-decimal pl-5 text-gray-600 space-y-3">
+                            <li><strong>In the Shower:</strong> Using the pads of your fingers, move around your entire breast in a circular pattern moving from the outside to the center, checking the entire breast and armpit area.</li>
+                            <li><strong>In Front of a Mirror:</strong> Look for any visual changes in the contour, any dimpling of the skin, or changes in the nipple.</li>
+                            <li><strong>Lying Down:</strong> When lying down, the breast tissue spreads evenly along the chest wall. Place a pillow under your right shoulder and your right arm behind your head. Using your left hand, move the pads of your fingers around your right breast gently covering the entire breast area and armpit.</li>
+                        </ol>
+                    </div>
+                `
+            },
+            {
+                id: 'pregnancy',
+                title: "Pregnancy Care",
+                icon: "baby",
+                color: "text-green-500",
+                description: "Essential guidance for expectant mothers.",
+                details: "Track your baby's growth, nutritional needs, and preparation for labor. Regular checkups and supplements are key.",
+                fullArticle: `
+                    <div class="space-y-4">
+                        <h4 class="font-bold text-xl text-rose-600">Essential Nutrition</h4>
+                        <p class="text-gray-600 leading-relaxed">Eating for two doesn't mean eating twice as much, but eating twice as well. Focus on nutrient-dense foods.</p>
+                        <ul class="list-disc pl-5 text-gray-600 space-y-2">
+                            <li><strong>Folic Acid:</strong> Crucial for the baby's neural tube development. Found in leafy greens and supplements.</li>
+                            <li><strong>Iron:</strong> Your blood volume increases during pregnancy. Eat lean red meat, spinach, and beans.</li>
+                            <li><strong>Calcium:</strong> Vital for building baby's bones. Dairy, fortified plant milks, and almonds are great sources.</li>
+                        </ul>
+
+                        <h4 class="font-bold text-xl text-rose-600">Warning Signs</h4>
+                        <p class="text-gray-600">Contact your doctor immediately if you experience severe headaches, vision changes, sudden swelling (preeclampsia signs), or vaginal bleeding.</p>
+                    </div>
+                `
+            },
+            {
+                id: 'mental',
+                title: "Mental Wellness",
+                icon: "smile",
+                color: "text-yellow-500",
+                description: "Tracking mood swings and anxiety triggers.",
+                details: "Hormonal fluctuations can impact mental health. Practice mindfulness, ensure adequate sleep, and consult a therapist if feelings persist.",
+                fullArticle: `
+                    <div class="space-y-4">
+                        <h4 class="font-bold text-xl text-rose-600">Hormones & Mood</h4>
+                        <p class="text-gray-600 leading-relaxed">Estrogen and progesterone influence serotonin and dopamine levels. Drops in these hormones before your period can trigger irritability, anxiety, or sadness.</p>
+                        
+                        <h4 class="font-bold text-xl text-rose-600">Self-Care Strategies</h4>
+                        <ul class="list-disc pl-5 text-gray-600 space-y-2">
+                            <li><strong>Mindfulness:</strong> Spend 5-10 minutes daily practicing deep breathing or meditation to lower cortisol.</li>
+                            <li><strong>Journaling:</strong> Writing down triggers helps identify patterns in your cycle-related mood changes.</li>
+                            <li><strong>Connection:</strong> Talk to friends or join support groups. Isolation worsens mental fatigue.</li>
+                        </ul>
+                    </div>
+                `
+            },
+            {
+                id: 'thyroid',
+                title: "Thyroid Health",
+                icon: "shield-alert",
+                color: "text-blue-500",
+                description: "Thyroid function impacts your entire cycle.",
+                details: "Hypothyroidism can cause heavy periods, while hyperthyroidism can cause absent ones. Regular TSH screening is recommended.",
+                fullArticle: `
+                    <div class="space-y-4">
+                        <h4 class="font-bold text-xl text-rose-600">The Master Gland</h4>
+                        <p class="text-gray-600 leading-relaxed">The thyroid gland regulates metabolism, energy, and reproductive health. Disorders are 5-8 times more common in women than men.</p>
+                        
+                        <h4 class="font-bold text-xl text-rose-600">Common Conditions</h4>
+                        <ul class="list-disc pl-5 text-gray-600 space-y-2">
+                            <li><strong>Hypothyroidism (Underactive):</strong> Symptoms include weight gain, fatigue, heavy periods, and cold sensitivity.</li>
+                            <li><strong>Hyperthyroidism (Overactive):</strong> Symptoms include weight loss, anxiety, light periods, and heat intolerance.</li>
+                        </ul>
+                    </div>
+                `
+            }
+        ];
+
+        const SYMPTOMS_ADVICE = {
+            "Cramps": "Try a heat patch, chamomile tea, or gentle yoga stretches specifically for the pelvic area.",
+            "Bloating": "Reduce salt intake, drink plenty of water, and avoid carbonated drinks.",
+            "Headache": "Rest in a dark room, stay hydrated, and consider magnesium supplements.",
+            "Acne": "Keep your skin clean, avoid heavy makeup, and consider zinc supplements.",
+            "Fatigue": "Prioritize sleep and eat iron-rich foods like spinach or lentils."
+        };
+
+        const DAILY_TIPS = [
+            { icon: "sun", title: "Morning Sunshine", text: "Get 10-15 minutes of sunlight to boost Vitamin D and mood." },
+            { icon: "glass-water", title: "Hydration Hero", text: "Drink a glass of water before every meal today." },
+            { icon: "moon", title: "Sleep Hygiene", text: "Avoid screens 1 hour before bed for better sleep quality." },
+            { icon: "footprints", title: "Keep Moving", text: "Take a 10-minute walk after lunch to aid digestion." },
+            { icon: "smile", title: "Mental Check-in", text: "Take 5 deep breaths if you feel overwhelmed today." },
+            { icon: "apple", title: "Snack Smart", text: "Choose nuts or fruit over processed sugars for energy." }
+        ];
+
+        const PERIOD_TIPS = [
+            { icon: "coffee", title: "Manage Cramps", text: "Warm chamomile tea or a heat patch can soothe pelvic pain." },
+            { icon: "battery-charging", title: "Rest & Reset", text: "Low energy is normal. It's okay to skip the gym today." },
+            { icon: "droplet", title: "Hygiene Tip", text: "Change your pad/tampon every 4-6 hours to prevent infection." },
+            { icon: "cloud-rain", title: "Mood Swings", text: "Hormones are shifting. Be kind to yourself today." },
+            { icon: "utensils", title: "Iron Boost", text: "Eat spinach, lentils, or dark chocolate to replenish iron." }
+        ];
+
+        // ==========================================
+        // 2. STATE MANAGEMENT
+        // ==========================================
+
+        const state = {
+            user: null, 
+            activeTab: 'dashboard',
+            authStep: 1,
+            
+            // Login Fields
+            authName: '',
+            authAddress: '',
+            authPhone: '',
+            authOtp: '',
+            authLoading: false,
+            
+            // Cycle Data
+            currentDate: new Date(),
+            cycleData: {}, 
+            cycleLength: 28, 
+            periodLength: 5, 
+
+            selectedDateDetails: null, 
+            
+            // Learn Section
+            expandedTopicId: null,
+            activeArticle: null, 
+
+            // Services & Doctor Chat
+            serviceView: 'menu', // 'menu', 'doctors', 'pharmacy', 'chat', 'cart'
+            activeDoctor: null,
+            bookedDoctors: [],
+            doctorChatMessages: {}, 
+            
+            // Pharmacy Cart
+            cart: [],
+
+            // Video/Voice Call State
+            isVideoCallActive: false,
+            callType: 'video',   // 'video' or 'audio'
+            
+            // Call Controls
+            isMuted: false,
+            isVideoPaused: false,
+            
+            // Mock Stream Object
+            localStream: null,
+
+            // AI Assistant Chat
+            chatOpen: false,
+            chatInput: '',
+            chatMessages: [
+                { id: 1, sender: 'bot', text: "Hi! I'm your health assistant. How can I help you today?" }
+            ]
+        };
+
+        // ==========================================
+        // 3. HELPER FUNCTIONS
+        // ==========================================
+
+        function showNotification(message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `<i data-lucide="info" width="16"></i> ${message}`;
+            container.appendChild(toast);
+            lucide.createIcons();
+            
+            // Animate out
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-20px)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Cycle Logic Engine
+        function getCycleStats() {
+            const dates = Object.keys(state.cycleData).sort();
+            if (dates.length === 0) return null;
+
+            let lastStartDate = null;
+            
+            // Find the most recent period start
+            for (let i = dates.length - 1; i >= 0; i--) {
+                const dateKey = dates[i];
+                if (state.cycleData[dateKey].flow) {
+                    const dateObj = new Date(dateKey);
+                    const prevDate = new Date(dateObj);
+                    prevDate.setDate(prevDate.getDate() - 1);
+                    const prevKey = `${prevDate.getFullYear()}-${prevDate.getMonth()}-${prevDate.getDate()}`;
+                    
+                    if (!state.cycleData[prevKey] || !state.cycleData[prevKey].flow) {
+                        lastStartDate = dateObj;
+                        break; 
+                    }
+                }
+            }
+
+            if (!lastStartDate) return null;
+
+            const today = new Date();
+            const diffTime = Math.abs(today - lastStartDate);
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+            const dayOfCycle = diffDays + 1;
+
+            let phase = '';
+            if (dayOfCycle <= state.periodLength) phase = 'Menstrual Phase';
+            else if (dayOfCycle <= 13) phase = 'Follicular Phase';
+            else if (dayOfCycle === 14) phase = 'Ovulation Day';
+            else if (dayOfCycle <= 28) phase = 'Luteal Phase';
+            else phase = 'Late / Irregular';
+
+            const nextPeriodDate = new Date(lastStartDate);
+            nextPeriodDate.setDate(lastStartDate.getDate() + state.cycleLength);
+            
+            const daysUntilNext = Math.ceil((nextPeriodDate - today) / (1000 * 60 * 60 * 24));
+            
+            let fertility = 'Low';
+            if (dayOfCycle >= 10 && dayOfCycle <= 16) fertility = 'High';
+            if (dayOfCycle === 14) fertility = 'Peak';
+
+            return {
+                dayOfCycle,
+                phase,
+                daysUntilNext,
+                fertility,
+                lastStartDate,
+                nextPeriodDate
+            };
+        }
+
+        function isPredictedPeriod(targetDate) {
+            const stats = getCycleStats();
+            if (!stats) return false;
+            if (targetDate <= stats.lastStartDate) return false;
+
+            const diffTime = Math.abs(targetDate - stats.lastStartDate);
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            const dayInCycle = diffDays % state.cycleLength;
+
+            return dayInCycle < state.periodLength;
+        }
+
+        function isPredictedOvulation(targetDate) {
+            const stats = getCycleStats();
+            if (!stats) return false;
+             if (targetDate <= stats.lastStartDate) return false;
+
+            const diffTime = Math.abs(targetDate - stats.lastStartDate);
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            const dayInCycle = diffDays % state.cycleLength;
+
+            return dayInCycle === 13;
+        }
+
+        // Pharmacy Logic
+        function addToCart(item) {
+            const existingItem = state.cart.find(i => i.id === item.id);
+            if(existingItem) {
+                existingItem.qty += 1;
+            } else {
+                state.cart.push({...item, qty: 1});
+            }
+            showNotification("Added to Cart");
+            render();
+        }
+
+        function removeFromCart(id) {
+            state.cart = state.cart.filter(i => i.id !== id);
+            render();
+        }
+
+        function placeOrder() {
+            if(state.cart.length === 0) {
+                showNotification("Cart is empty");
+                return;
+            }
+            // Simulate API call
+            state.cart = [];
+            state.serviceView = 'pharmacy';
+            showNotification("Order Placed Successfully!");
+            render();
+        }
+
+        // ==========================================
+        // 4. MAIN RENDER LOOP
+        // ==========================================
+
+        function render() {
+            const app = document.getElementById('app');
+            const chatContainer = document.getElementById('chat-container');
+            const videoContainer = document.getElementById('video-call-container');
+            
+            if (!state.user) {
+                app.innerHTML = renderAuthScreen();
+                chatContainer.innerHTML = ''; 
+                chatContainer.className = ''; 
+                videoContainer.innerHTML = '';
+            } else {
+                app.innerHTML = `
+                    ${renderHeader()}
+                    <div class="flex min-h-screen pt-[72px]">
+                        ${renderDesktopNav()}
+                        <main class="flex-1 max-w-3xl mx-auto p-4 md:p-6 pb-24 md:pl-24">
+                            ${renderContent()}
+                        </main>
+                    </div>
+                    ${renderMobileNav()}
+                    ${state.selectedDateDetails ? renderDayLogModal() : ''}
+                    ${state.activeArticle ? renderArticleModal() : ''}
+                `;
+                renderChatWidget(); 
+                
+                // Render Video Call Overlay if Active
+                if(state.isVideoCallActive) {
+                    renderCallOverlay();
+                } else {
+                    videoContainer.innerHTML = '';
+                }
+            }
+            
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // 5. VIEW COMPONENTS
+        // ==========================================
+
+        function renderAuthScreen() {
+             return `
+                <div class="min-h-screen bg-rose-50 flex flex-col items-center justify-center p-6 fade-in">
+                    <div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+                        <div class="flex justify-center mb-6">
+                            <div class="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center">
+                                <i data-lucide="heart" class="w-8 h-8 text-rose-500"></i>
+                            </div>
+                        </div>
+                        <h1 class="text-2xl font-bold text-center text-gray-800 mb-2">Healthy Her</h1>
+                        <p class="text-center text-gray-500 mb-8">Secure Login via Mobile</p>
+
+                        ${state.authStep === 1 ? `
+                            <form onsubmit="handleSendOtp(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                    <div class="relative">
+                                        <i data-lucide="user" class="absolute left-3 top-3 w-5 h-5 text-gray-400"></i>
+                                        <!-- Removed required for custom validation -->
+                                        <input type="text" value="${state.authName}" oninput="state.authName = this.value" class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none" placeholder="Jane Doe" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                                    <div class="relative flex gap-2">
+                                        <div class="relative flex-1">
+                                            <i data-lucide="map-pin" class="absolute left-3 top-3 w-5 h-5 text-gray-400"></i>
+                                            <input type="text" id="authAddressInput" value="${state.authAddress}" oninput="state.authAddress = this.value" class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none" placeholder="City, Country" />
+                                        </div>
+                                        <button type="button" onclick="fetchLocation()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 p-2 rounded-lg border border-gray-300" title="Get Current Location"><i data-lucide="crosshair" class="w-6 h-6"></i></button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Mobile Number</label>
+                                    <div class="relative">
+                                        <i data-lucide="phone" class="absolute left-3 top-3 w-5 h-5 text-gray-400"></i>
+                                        <input type="tel" value="${state.authPhone}" oninput="state.authPhone = this.value" class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none" placeholder="Enter your number" />
+                                    </div>
+                                </div>
+                                <button type="submit" ${state.authLoading ? 'disabled' : ''} class="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-lg transition-colors flex justify-center items-center">
+                                    ${state.authLoading ? 'Sending...' : 'Send OTP'}
+                                </button>
+                            </form>
+                        ` : `
+                            <form onsubmit="handleVerifyOtp(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Enter OTP</label>
+                                    <div class="relative">
+                                        <i data-lucide="lock" class="absolute left-3 top-3 w-5 h-5 text-gray-400"></i>
+                                        <input type="text" value="${state.authOtp}" oninput="state.authOtp = this.value" class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none" placeholder="xxxx" autofocus />
+                                    </div>
+                                    <p class="text-xs text-right mt-1 text-rose-500 cursor-pointer hover:underline" onclick="state.authStep = 1; render()">Edit details?</p>
+                                </div>
+                                <button type="submit" ${state.authLoading ? 'disabled' : ''} class="w-full bg-rose-500 hover:bg-rose-600 text-white font-semibold py-3 rounded-lg transition-colors">
+                                    ${state.authLoading ? 'Verifying...' : 'Verify & Login'}
+                                </button>
+                            </form>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderHeader() {
+            return `
+                <header class="bg-white shadow-sm fixed top-0 left-0 right-0 z-20 px-6 py-4 flex justify-between items-center h-[72px]">
+                    <h1 class="text-xl font-bold text-rose-600 flex items-center gap-2">
+                        <i data-lucide="heart" class="fill-rose-600 text-rose-600"></i> Healthy Her
+                    </h1>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right hidden sm:block">
+                            <span class="block text-sm font-medium text-gray-800">${state.user.name}</span>
+                            <span class="block text-xs text-gray-500 truncate max-w-[150px]">${state.user.address}</span>
+                        </div>
+                        <div class="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-rose-600 font-bold uppercase">
+                            ${state.user.name.charAt(0)}
+                        </div>
+                    </div>
+                </header>
+            `;
+        }
+
+        function renderDesktopNav() {
+            const tabs = [
+                { id: 'dashboard', icon: 'activity', label: 'Dash' },
+                { id: 'tracker', icon: 'calendar', label: 'Cycle' },
+                { id: 'health', icon: 'book-open', label: 'Learn' },
+                { id: 'services', icon: 'stethoscope', label: 'Services' }
+            ];
+
+            return `
+                <div class="hidden md:flex fixed left-0 top-[72px] bottom-0 w-20 bg-white border-r flex-col items-center pt-8 gap-8 z-10">
+                    ${tabs.map(tab => `
+                        <button onclick="setActiveTab('${tab.id}')" class="flex flex-col items-center gap-1 ${state.activeTab === tab.id ? 'text-rose-600' : 'text-gray-400 hover:text-rose-400'}">
+                            <i data-lucide="${tab.icon}" width="24" height="24"></i>
+                            <span class="text-[10px] font-medium">${tab.label}</span>
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderMobileNav() {
+            const tabs = [
+                { id: 'dashboard', icon: 'activity', label: 'Dash' },
+                { id: 'tracker', icon: 'calendar', label: 'Cycle' },
+                { id: 'health', icon: 'book-open', label: 'Learn' },
+                { id: 'services', icon: 'stethoscope', label: 'Services' }
+            ];
+            
+            const leftTabs = tabs.slice(0, 2);
+            const rightTabs = tabs.slice(2);
+            
+            const renderTab = (tab) => `
+                <button onclick="setActiveTab('${tab.id}')" class="flex flex-col items-center gap-1 ${state.activeTab === tab.id ? 'text-rose-600' : 'text-gray-400 hover:text-rose-400'} w-16">
+                    <i data-lucide="${tab.icon}" width="24" height="24"></i>
+                    <span class="text-[10px] font-medium">${tab.label}</span>
+                </button>
+            `;
+
+            return `
+                <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 flex justify-between items-end z-40 md:hidden h-20 pb-3">
+                    <div class="flex gap-2">${leftTabs.map(renderTab).join('')}</div>
+                    
+                    <div class="relative -top-6">
+                        <button onclick="toggleChat()" class="bg-rose-500 hover:bg-rose-600 text-white w-16 h-16 rounded-full shadow-lg border-4 border-gray-50 flex items-center justify-center transition-transform active:scale-95">
+                             <i data-lucide="message-circle" width="30" height="30"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex gap-2">${rightTabs.map(renderTab).join('')}</div>
+                </nav>
+            `;
+        }
+
+        function renderContent() {
+            switch(state.activeTab) {
+                case 'dashboard': return renderDashboardView();
+                case 'tracker': return renderTrackerView();
+                case 'health': return renderLearnView();
+                case 'services': return renderServicesView();
+                default: return renderDashboardView();
+            }
+        }
+
+        // --- Dashboard View ---
+        function renderDashboardView() {
+            const hour = new Date().getHours();
+            let greeting = 'Good Morning';
+            if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
+            else if (hour >= 17 && hour < 21) greeting = 'Good Evening';
+            else if (hour >= 21 || hour < 5) greeting = 'Good Night';
+
+            const stats = getCycleStats();
+
+            let dayText = "Start Tracking";
+            let phaseText = "Log your last period to see details";
+            let nextPeriodText = "--";
+            let fertilityText = "--";
+
+            if (stats) {
+                dayText = `Day ${stats.dayOfCycle} of cycle`;
+                phaseText = stats.phase;
+                if(stats.daysUntilNext === 0) nextPeriodText = "Today";
+                else if(stats.daysUntilNext < 0) nextPeriodText = `${Math.abs(stats.daysUntilNext)} Days Late`;
+                else nextPeriodText = `${stats.daysUntilNext} Days`;
+                fertilityText = stats.fertility;
+            }
+
+            const isOnPeriod = stats && stats.dayOfCycle <= state.periodLength;
+            const dayOfMonth = new Date().getDate();
+
+            let insight = {
+                title: "Daily Wisdom",
+                text: "Stay hydrated and keep moving!",
+                icon: "sparkles",
+                color: "bg-blue-50"
+            };
+
+            if (isOnPeriod) {
+                const tipIndex = dayOfMonth % PERIOD_TIPS.length;
+                const tip = PERIOD_TIPS[tipIndex];
+                insight = {
+                    title: tip.title,
+                    text: tip.text,
+                    icon: tip.icon,
+                    color: "bg-rose-50 border-rose-100"
+                };
+            } else {
+                const tipIndex = dayOfMonth % DAILY_TIPS.length;
+                const tip = DAILY_TIPS[tipIndex];
+                insight = {
+                    title: tip.title,
+                    text: tip.text,
+                    icon: tip.icon,
+                    color: "bg-indigo-50 border-indigo-100"
+                };
+            }
+
+            return `
+                <div class="space-y-6 fade-in">
+                    <div class="bg-gradient-to-r from-rose-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+                        <div class="relative z-10">
+                            <h2 class="text-2xl font-bold mb-1">${greeting}, ${state.user.name.split(' ')[0]}!</h2>
+                            <p class="opacity-90 mb-4 font-medium">${dayText} • ${phaseText}</p>
+                            
+                            <div class="flex gap-4 mt-6">
+                                <div class="bg-white/20 backdrop-blur-sm rounded-lg p-3 flex-1 text-center border border-white/10">
+                                    <span class="block text-xs uppercase tracking-wider opacity-80">Next Period</span>
+                                    <span class="text-xl font-bold">${nextPeriodText}</span>
+                                </div>
+                                <div class="bg-white/20 backdrop-blur-sm rounded-lg p-3 flex-1 text-center border border-white/10">
+                                    <span class="block text-xs uppercase tracking-wider opacity-80">Fertility</span>
+                                    <span class="text-xl font-bold">${fertilityText}</span>
+                                </div>
+                            </div>
+
+                            ${!stats ? `
+                                <div class="mt-4 pt-4 border-t border-white/20">
+                                    <button onclick="logPeriodStartToday()" class="w-full bg-white text-rose-600 py-2 rounded-lg font-bold hover:bg-rose-50 transition-colors">
+                                        Mark Period Started Today
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="setActiveTab('tracker')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-2 hover:bg-rose-50 transition-colors group">
+                            <div class="bg-rose-100 p-2 rounded-full text-rose-600 group-hover:bg-rose-200 transition-colors"><i data-lucide="droplet" width="20"></i></div>
+                            <span class="font-semibold text-gray-700">Log Cycle</span>
+                        </button>
+                        <button onclick="setActiveTab('services')" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-2 hover:bg-rose-50 transition-colors group">
+                            <div class="bg-blue-100 p-2 rounded-full text-blue-600 group-hover:bg-blue-200 transition-colors"><i data-lucide="stethoscope" width="20"></i></div>
+                            <span class="font-semibold text-gray-700">Services</span>
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i data-lucide="bot" class="text-purple-600" width="18"></i> AI Insights
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="flex items-start gap-3 p-3 rounded-xl border ${insight.color}">
+                                <div class="p-2 bg-white rounded-full shadow-sm">
+                                    <i data-lucide="${insight.icon}" class="text-gray-700" width="20"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-bold text-gray-800">${insight.title}</p>
+                                    <p class="text-xs text-gray-600 mt-1">${insight.text}</p>
+                                </div>
+                            </div>
+                            
+                            ${stats && stats.dayOfCycle <= 5 ? `
+                                <div class="flex items-start gap-3 p-3 bg-orange-50 rounded-xl border border-orange-100">
+                                    <span class="text-2xl">💧</span>
+                                    <div>
+                                        <p class="text-sm font-semibold text-gray-800">Hydration Alert</p>
+                                        <p class="text-xs text-gray-600">Blood loss requires extra fluids. Aim for 2.5L today.</p>
+                                    </div>
+                                </div>
+                             ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Tracker View (Calendar) ---
+        function renderTrackerView() {
+            const year = state.currentDate.getFullYear();
+            const month = state.currentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDay = new Date(year, month, 1).getDay();
+            
+            const monthName = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(state.currentDate);
+
+            let daysHtml = '';
+            for (let i = 0; i < firstDay; i++) {
+                daysHtml += `<div></div>`;
+            }
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateKey = `${year}-${month}-${day}`;
+                const dateObj = new Date(year, month, day);
+                
+                const hasData = state.cycleData[dateKey];
+                const isPredicted = isPredictedPeriod(dateObj);
+                const isOvulation = isPredictedOvulation(dateObj);
+
+                let dotHtml = '';
+                let borderClass = 'border-transparent';
+
+                if (hasData) {
+                    let dotColor = '';
+                    if (hasData.flow === 'Heavy') dotColor = 'bg-rose-600';
+                    else if (hasData.flow === 'Medium') dotColor = 'bg-rose-400';
+                    else if (hasData.flow === 'Light') dotColor = 'bg-rose-300';
+                    else if (hasData.symptoms && hasData.symptoms.length > 0) dotColor = 'bg-purple-400';
+                    
+                    if(dotColor) dotHtml = `<span class="w-1.5 h-1.5 rounded-full mt-1 ${dotColor}"></span>`;
+                } 
+                else if (isPredicted) {
+                    dotHtml = `<span class="w-1.5 h-1.5 rounded-full mt-1 border border-rose-400 bg-white"></span>`;
+                    borderClass = 'border-rose-100 bg-rose-50/50';
+                }
+                else if (isOvulation) {
+                    dotHtml = `<span class="w-1.5 h-1.5 rounded-full mt-1 bg-purple-500"></span>`;
+                }
+
+                daysHtml += `
+                    <button 
+                        onclick="handleDateClick(${day})"
+                        class="aspect-square flex flex-col items-center justify-center rounded-lg hover:bg-rose-50 transition-colors relative border ${borderClass}"
+                    >
+                        <span class="text-gray-700">${day}</span>
+                        ${dotHtml}
+                    </button>
+                `;
+            }
+
+            return `
+                <div class="space-y-4 fade-in">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                        <div class="flex justify-between items-center mb-6">
+                            <button onclick="changeMonth(-1)" class="p-2 hover:bg-gray-100 rounded-full"><i data-lucide="chevron-left" width="20"></i></button>
+                            <h2 class="text-lg font-bold text-gray-800">${monthName}</h2>
+                            <button onclick="changeMonth(1)" class="p-2 hover:bg-gray-100 rounded-full"><i data-lucide="chevron-right" width="20"></i></button>
+                        </div>
+
+                        <div class="grid grid-cols-7 gap-2 text-center text-sm mb-2">
+                            ${['S','M','T','W','T','F','S'].map(d => `<span class="text-gray-400 font-medium">${d}</span>`).join('')}
+                        </div>
+                        <div class="grid grid-cols-7 gap-2">
+                            ${daysHtml}
+                        </div>
+                    </div>
+
+                    <div class="flex justify-center flex-wrap gap-4 text-xs text-gray-500">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-600"></span> Heavy</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full border border-rose-400 bg-white"></span> Predicted</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span> Fertile</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDayLogModal() {
+            const { day, data } = state.selectedDateDetails;
+            const advice = (data.symptoms || []).map(s => SYMPTOMS_ADVICE[s]).filter(Boolean);
+
+            return `
+                <div class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+                    <div class="bg-white w-full max-w-md rounded-2xl p-6 fade-in">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold">Log for ${state.currentDate.toLocaleString('default', { month: 'long' })} ${day}</h3>
+                            <button onclick="closeModal()"><i data-lucide="x" width="20"></i></button>
+                        </div>
+
+                        <div class="mb-6">
+                            <p class="text-sm font-semibold text-gray-500 mb-2 uppercase">Period Flow</p>
+                            <div class="flex gap-2">
+                                ${['None', 'Light', 'Medium', 'Heavy'].map(flow => `
+                                    <button
+                                        onclick="updateModalData('flow', '${flow === 'None' ? '' : flow}')"
+                                        class="flex-1 py-2 rounded-lg text-sm border ${data.flow === flow ? 'bg-rose-500 text-white border-rose-500' : 'border-gray-200 text-gray-600'}"
+                                    >
+                                        ${flow}
+                                    </button>
+                                `).join('')}
+                            </div>
+                            <p class="text-xs text-gray-400 mt-2">Logging flow marks the start of your cycle automatically.</p>
+                        </div>
+
+                        <div class="mb-6">
+                            <p class="text-sm font-semibold text-gray-500 mb-2 uppercase">Symptoms</p>
+                            <div class="flex flex-wrap gap-2">
+                                ${Object.keys(SYMPTOMS_ADVICE).map(sym => `
+                                    <button
+                                        onclick="toggleSymptom('${sym}')"
+                                        class="px-3 py-1 rounded-full text-sm border ${(data.symptoms || []).includes(sym) ? 'bg-purple-100 text-purple-700 border-purple-200' : 'border-gray-200 text-gray-600'}"
+                                    >
+                                        ${sym}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        ${advice.length > 0 ? `
+                            <div class="mb-6 bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+                                <p class="text-xs font-bold text-yellow-700 mb-1 flex items-center gap-1"><i data-lucide="star" width="12"></i> Personalized Tips:</p>
+                                <ul class="text-xs text-gray-700 list-disc pl-4 space-y-1">
+                                    ${advice.map(tip => `<li>${tip}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        <button 
+                            onclick="saveLog()"
+                            class="w-full bg-rose-600 text-white py-3 rounded-xl font-semibold hover:bg-rose-700"
+                        >
+                            Save Log
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Learn View (Health Articles) ---
+        function renderLearnView() {
+             return `
+                <div class="space-y-4 fade-in">
+                    <h2 class="text-2xl font-bold text-gray-800">Health Education</h2>
+                    <p class="text-gray-500 text-sm">Empowering you with knowledge.</p>
+                    <div class="grid gap-4">
+                        ${HEALTH_TOPICS.map(topic => {
+                            const isExpanded = state.expandedTopicId === topic.id;
+                            return `
+                                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                                    <div class="p-4 flex items-start gap-4 cursor-pointer" onclick="toggleTopic('${topic.id}')">
+                                        <div class="mt-1 ${topic.color}"><i data-lucide="${topic.icon}" width="24"></i></div>
+                                        <div class="flex-1">
+                                            <h3 class="font-bold text-gray-800 flex justify-between">${topic.title} <i data-lucide="chevron-right" width="16" class="transition-transform text-gray-400 ${isExpanded ? 'rotate-90' : ''}"></i></h3>
+                                            <p class="text-sm text-gray-500 mt-1">${topic.description}</p>
+                                        </div>
+                                    </div>
+                                    ${isExpanded ? `
+                                        <div class="px-4 pb-4 pl-14 text-sm text-gray-600 bg-gray-50/50 pt-2 border-t border-gray-100">
+                                            ${topic.details}
+                                            <div class="mt-3">
+                                                <button onclick="openArticle('${topic.id}')" class="text-rose-500 font-semibold text-xs cursor-pointer hover:underline flex items-center gap-1">
+                                                    Read full article <i data-lucide="arrow-right" width="12"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderArticleModal() {
+            const topic = HEALTH_TOPICS.find(t => t.id === state.activeArticle);
+            if (!topic) return '';
+
+            return `
+                <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 fade-in">
+                    <div class="bg-white w-full max-w-2xl h-[80vh] rounded-2xl flex flex-col slide-up shadow-2xl relative">
+                        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                            <div class="flex items-center gap-3">
+                                <div class="bg-white p-2 rounded-lg shadow-sm ${topic.color}">
+                                    <i data-lucide="${topic.icon}" width="24"></i>
+                                </div>
+                                <h3 class="text-xl font-bold text-gray-800">${topic.title}</h3>
+                            </div>
+                            <button onclick="closeArticle()" class="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                                <i data-lucide="x" width="24" class="text-gray-500"></i>
+                            </button>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-6 text-gray-700 leading-relaxed text-base">
+                            ${topic.fullArticle}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- SERVICES VIEW ---
+        function renderServicesView() {
+            if (state.serviceView === 'menu') return renderServicesMenu();
+            if (state.serviceView === 'doctors') return renderDoctorsList();
+            if (state.serviceView === 'pharmacy') return renderPharmacyStore(); // CHANGED to Store
+            if (state.serviceView === 'cart') return renderCart(); // Added Cart
+            if (state.serviceView === 'chat') return renderDoctorChat();
+            return renderServicesMenu();
+        }
+
+        function renderServicesMenu() {
+            return `
+                <div class="space-y-6 fade-in">
+                    <h2 class="text-2xl font-bold text-gray-800">Services</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button onclick="setServiceView('doctors')" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:bg-rose-50 transition-colors text-left group">
+                            <div class="bg-blue-100 p-4 rounded-full text-blue-600 group-hover:scale-110 transition-transform">
+                                <i data-lucide="stethoscope" width="32" height="32"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-lg text-gray-800">Doctors</h3>
+                                <p class="text-sm text-gray-500">Consult specialists near you</p>
+                            </div>
+                            <i data-lucide="chevron-right" class="ml-auto text-gray-300"></i>
+                        </button>
+                        
+                        <button onclick="setServiceView('pharmacy')" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 hover:bg-green-50 transition-colors text-left group">
+                            <div class="bg-green-100 p-4 rounded-full text-green-600 group-hover:scale-110 transition-transform">
+                                <i data-lucide="pill" width="32" height="32"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-lg text-gray-800">Medical Store</h3>
+                                <p class="text-sm text-gray-500">Order medicines & essentials</p>
+                            </div>
+                            <i data-lucide="chevron-right" class="ml-auto text-gray-300"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDoctorsList() {
+            return `
+                <div class="space-y-4 fade-in">
+                    <div class="flex items-center gap-2 mb-4">
+                        <button onclick="setServiceView('menu')" class="p-2 hover:bg-gray-200 rounded-full"><i data-lucide="arrow-left"></i></button>
+                        <h2 class="text-2xl font-bold text-gray-800">Doctors</h2>
+                    </div>
+                    
+                    <div class="bg-blue-50 p-4 rounded-xl flex justify-between items-center border border-blue-100 mb-4">
+                        <span class="text-blue-800 font-medium text-sm">Have a new specialist?</span>
+                        <button onclick="showNotification('Doctor Registration coming soon!')" class="bg-white text-blue-600 px-4 py-2 rounded-lg text-xs font-bold shadow-sm border border-blue-100 hover:bg-blue-50">
+                            + Add Doctor
+                        </button>
+                    </div>
+
+                    <div class="grid gap-4">
+                        ${DOCTORS.map(doc => `
+                            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex gap-4">
+                                <img src="${doc.image}" alt="${doc.name}" class="w-16 h-16 rounded-full bg-gray-100 object-cover" />
+                                <div class="flex-1">
+                                    <div class="flex justify-between items-start">
+                                        <h3 class="font-bold text-gray-800">${doc.name}</h3>
+                                        <span class="flex items-center text-xs font-bold text-yellow-500"><i data-lucide="star" width="12" class="fill-yellow-500 mr-1"></i> ${doc.rating}</span>
+                                    </div>
+                                    <p class="text-sm text-rose-600 font-medium">${doc.specialty}</p>
+                                    <p class="text-xs text-gray-400 mt-1 flex items-center gap-1"><i data-lucide="map-pin" width="12"></i> ${doc.distance}</p>
+                                    <div class="mt-3 flex gap-2">
+                                        <button onclick="openDoctorChat(${doc.id})" class="flex-1 bg-rose-500 text-white py-2 rounded-lg text-sm font-bold hover:bg-rose-600 flex items-center justify-center gap-2">
+                                            <i data-lucide="message-circle" width="16"></i> Connect
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- PHARMACY STORE (E-COMMERCE) ---
+        function renderPharmacyStore() {
+            const cartCount = state.cart.reduce((acc, item) => acc + item.qty, 0);
+            return `
+                <div class="space-y-4 fade-in h-full">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <button onclick="setServiceView('menu')" class="p-2 hover:bg-gray-100 rounded-full"><i data-lucide="arrow-left"></i></button>
+                            <h2 class="text-2xl font-bold text-gray-800">Pharmacy</h2>
+                        </div>
+                        <button onclick="setServiceView('cart')" class="relative p-2 bg-white border rounded-full shadow-sm hover:bg-gray-50">
+                            <i data-lucide="shopping-cart" class="text-gray-700"></i>
+                            ${cartCount > 0 ? `<span class="cart-badge">${cartCount}</span>` : ''}
+                        </button>
+                    </div>
+
+                    <div class="relative">
+                        <input type="text" placeholder="Search medicines..." class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-rose-500 outline-none" />
+                        <i data-lucide="search" class="absolute left-3 top-3.5 text-gray-400 w-5"></i>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 pb-20">
+                        ${MEDICINES.map(m => `
+                            <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex flex-col">
+                                <img src="${m.image}" class="w-full h-24 object-contain bg-gray-50 rounded-lg mb-2" />
+                                <h3 class="font-bold text-sm text-gray-800 line-clamp-1">${m.name}</h3>
+                                <p class="text-xs text-gray-500 mb-2">${m.type}</p>
+                                <div class="mt-auto flex items-center justify-between">
+                                    <span class="font-bold text-rose-600">₹${m.price}</span>
+                                    <button onclick='addToCart(${JSON.stringify(m)})' class="bg-rose-100 text-rose-600 p-1.5 rounded-lg hover:bg-rose-200">
+                                        <i data-lucide="plus" width="16"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <!-- Floating "Request Medicine" Button -->
+                    <button onclick="showNotification('Request sent to pharmacist!')" class="fixed bottom-24 right-6 bg-green-600 text-white px-4 py-3 rounded-full shadow-lg flex items-center gap-2 font-bold z-40 hover:bg-green-700 transition-transform active:scale-95">
+                        <i data-lucide="plus-circle"></i> Request Meds
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderCart() {
+            const total = state.cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+            return `
+                <div class="space-y-4 fade-in h-full flex flex-col">
+                    <div class="flex items-center gap-2 mb-2">
+                        <button onclick="setServiceView('pharmacy')" class="p-2 hover:bg-gray-100 rounded-full"><i data-lucide="arrow-left"></i></button>
+                        <h2 class="text-2xl font-bold text-gray-800">Your Cart</h2>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto space-y-3 pb-4">
+                        ${state.cart.length === 0 ? 
+                            `<div class="text-center py-10 text-gray-400 flex flex-col items-center">
+                                <i data-lucide="shopping-bag" width="48" height="48" class="mb-2 opacity-50"></i>
+                                <p>Cart is empty</p>
+                                <button onclick="setServiceView('pharmacy')" class="mt-4 text-rose-500 font-bold">Browse Medicines</button>
+                             </div>` 
+                            : 
+                            state.cart.map(item => `
+                                <div class="bg-white p-4 rounded-xl border flex justify-between items-center">
+                                    <div>
+                                        <h4 class="font-bold text-gray-800">${item.name}</h4>
+                                        <p class="text-sm text-gray-500">₹${item.price} x ${item.qty}</p>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-bold text-lg">₹${item.price * item.qty}</span>
+                                        <button onclick="removeFromCart(${item.id})" class="text-red-400 hover:text-red-600"><i data-lucide="trash-2" width="18"></i></button>
+                                    </div>
+                                </div>
+                            `).join('')
+                        }
+                    </div>
+
+                    ${state.cart.length > 0 ? `
+                        <div class="bg-white p-4 rounded-t-2xl shadow-lg border-t border-gray-100">
+                            <div class="flex justify-between mb-4 text-lg font-bold">
+                                <span>Total</span>
+                                <span>₹${total}</span>
+                            </div>
+                            <button onclick="placeOrder()" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 shadow-md transition-transform active:scale-95">
+                                Place Order
+                            </button>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // --- DOCTOR CHAT INTERFACE ---
+        function renderDoctorChat() {
+            const doctor = state.activeDoctor;
+            const messages = state.doctorChatMessages[doctor.id] || [];
+            const inputValue = document.getElementById('doc-input')?.value || ''; 
+            const btnIcon = inputValue.trim().length > 0 ? 'send' : 'mic';
+            
+            return `
+                <div class="flex flex-col h-[calc(100vh-160px)] md:h-[600px] bg-white rounded-xl overflow-hidden relative fade-in border border-gray-200">
+                    <!-- Header -->
+                    <div class="bg-rose-500 text-white p-3 flex items-center gap-3 shadow-md z-10">
+                        <button onclick="setServiceView('doctors')"><i data-lucide="arrow-left"></i></button>
+                        <img src="${doctor.image}" class="w-10 h-10 rounded-full bg-gray-300 border-2 border-white/30" />
+                        <div class="flex-1">
+                            <h3 class="font-bold text-sm leading-tight">${doctor.name}</h3>
+                            <p class="text-[10px] opacity-90">Online</p>
+                        </div>
+                        <div class="flex gap-4 pr-2">
+                            <button onclick="startCall('audio')"><i data-lucide="phone" width="20"></i></button>
+                            <button onclick="startCall('video')"><i data-lucide="video" width="20"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Messages Area -->
+                    <div id="doc-chat-area" class="flex-1 overflow-y-auto p-4 space-y-2 relative bg-gray-50">
+                        <div class="flex justify-center mb-4"><span class="bg-yellow-100 text-yellow-800 text-xs py-1 px-3 rounded shadow-sm flex items-center gap-1"><i data-lucide="lock" width="10"></i> End-to-end encrypted.</span></div>
+                        
+                        ${messages.map(msg => `
+                            <div class="flex flex-col ${msg.sender === 'me' ? 'items-end' : 'items-start'}">
+                                <div class="msg-bubble ${msg.sender === 'me' ? 'msg-sent' : 'msg-received'}">
+                                    ${msg.type === 'image' ? `<img src="${msg.content}" class="rounded-lg max-w-[200px] mb-1"/>` : 
+                                      msg.type === 'audio' ? `<div class="flex items-center gap-2 min-w-[120px]"><i data-lucide="play" width="16"></i> <span>Audio 0:05</span></div>` :
+                                      msg.type === 'document' ? `<div class="flex items-center gap-2"><i data-lucide="file-text" width="16"></i> <span class="underline">${msg.text}</span></div>` :
+                                      msg.text}
+                                    <span class="text-[10px] opacity-70 float-right ml-2 mt-1 block">${new Date(msg.ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <!-- Input Area -->
+                    <div class="bg-white p-2 flex items-end gap-2 border-t border-gray-100">
+                        <div class="bg-gray-100 flex-1 rounded-2xl flex items-center px-2 py-1 shadow-inner">
+                            <input type="text" id="doc-input" class="flex-1 bg-transparent border-none focus:ring-0 text-sm px-2 py-2 outline-none text-gray-800" placeholder="Message..." oninput="toggleSendIcon()" onkeypress="if(event.key === 'Enter') handleMainAction()" />
+                            
+                            <!-- Hidden File Input -->
+                            <input type="file" id="hidden-file-input" class="hidden" onchange="handleFileInputChange(this)" />
+
+                            <button class="p-2 text-gray-500 hover:text-rose-500" onclick="attachFile()"><i data-lucide="paperclip" width="20"></i></button>
+                            <button class="p-2 text-gray-500 hover:text-rose-500" onclick="takePhoto()"><i data-lucide="camera" width="20"></i></button>
+                        </div>
+                        <button id="main-chat-btn" class="bg-rose-500 text-white p-3 rounded-full shadow-md flex items-center justify-center hover:bg-rose-600 transition-transform active:scale-95" onclick="handleMainAction()">
+                            <i data-lucide="${btnIcon}" width="20"></i> 
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- UNIFIED CALL OVERLAY ---
+        function renderCallOverlay() {
+            const container = document.getElementById('video-call-container');
+            const isVideo = state.callType === 'video';
+            
+            container.innerHTML = `
+                <div class="fixed inset-0 bg-gray-900 z-[60] flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+                    <div class="absolute top-10 left-0 right-0 text-center text-white z-10">
+                        <h2 class="text-2xl font-bold mb-1">${state.activeDoctor.name}</h2>
+                        <p class="animate-pulse text-sm">${isVideo ? 'Video Calling...' : 'Voice Calling...'}</p>
+                    </div>
+                    
+                    <div class="w-full h-full flex items-center justify-center relative">
+                        ${ (!isVideo || state.isVideoPaused) ? 
+                            `<div class="flex flex-col items-center"><img src="${state.activeDoctor.image}" class="w-32 h-32 rounded-full border-4 border-rose-500 shadow-2xl animate-pulse" /></div>` 
+                            : 
+                            `<div class="w-full h-full bg-gray-800 flex items-center justify-center text-white"><p>Remote Video Stream</p></div>`
+                        }
+                    </div>
+
+                    ${ isVideo && !state.isVideoPaused ? 
+                        `<div class="absolute bottom-32 right-4 w-32 h-48 bg-black rounded-xl border-2 border-white overflow-hidden shadow-2xl">
+                             <video id="localVideo" autoplay muted playsinline class="w-full h-full object-cover transform -scale-x-100"></video>
+                        </div>` : '' 
+                    }
+
+                    <div class="absolute bottom-10 flex justify-center gap-6 w-full">
+                        <button onclick="toggleMute()" class="${state.isMuted ? 'bg-white text-red-600 call-btn-active' : 'call-btn-inactive'} p-4 rounded-full call-btn"><i data-lucide="${state.isMuted ? 'mic-off' : 'mic'}" width="24"></i></button>
+                        
+                        <button onclick="endCall()" class="bg-red-600 p-4 rounded-full text-white shadow-lg hover:bg-red-700 transform hover:scale-110 call-btn"><i data-lucide="phone-off" width="32"></i></button>
+                        
+                        ${ isVideo ? `<button onclick="toggleVideo()" class="${state.isVideoPaused ? 'bg-white text-red-600 call-btn-active' : 'call-btn-inactive'} p-4 rounded-full call-btn"><i data-lucide="${state.isVideoPaused ? 'video-off' : 'video'}" width="24"></i></button>` : '' }
+                    </div>
+                </div>
+            `;
+            
+            if (isVideo && !state.isVideoPaused) {
+                setTimeout(() => {
+                    const video = document.getElementById('localVideo');
+                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                            .then(stream => {
+                                state.localStream = stream;
+                                if(video) video.srcObject = stream;
+                            })
+                            .catch(err => {
+                                console.error("Camera denied", err);
+                                showNotification("Camera access denied by browser");
+                            });
+                    }
+                }, 100);
+            }
+        }
+
+        function renderChatWidget() {
+            const container = document.getElementById('chat-container');
+            if (state.chatOpen) {
+                container.className = "fixed bottom-24 left-4 right-4 z-50 md:bottom-10 md:right-10 md:left-auto md:w-80";
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl shadow-2xl w-full md:w-80 h-96 flex flex-col overflow-hidden border border-rose-100 fade-in">
+                        <div class="bg-rose-500 p-4 flex justify-between items-center text-white">
+                            <h3 class="font-semibold flex items-center gap-2"><i data-lucide="message-circle" width="18"></i> Support Chat</h3>
+                            <button onclick="toggleChat()"><i data-lucide="x" width="18"></i></button>
+                        </div>
+                        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 scrollbar-hide">
+                            ${state.chatMessages.map(msg => `<div class="flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}"><div class="max-w-[80%] p-3 rounded-lg text-sm ${msg.sender === 'user' ? 'bg-rose-500 text-white rounded-br-none' : 'bg-white text-gray-800 shadow-sm rounded-bl-none border border-gray-100'}">${msg.text}</div></div>`).join('')}
+                        </div>
+                        <div class="p-3 bg-white border-t border-gray-100 flex gap-2">
+                            <input type="text" id="ai-input" class="flex-1 border border-gray-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-rose-500" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') sendAIMessage()" />
+                            <button onclick="sendAIMessage()" class="bg-rose-500 text-white p-2 rounded-full hover:bg-rose-600"><i data-lucide="send" width="16"></i></button>
+                        </div>
+                    </div>
+                `;
+                setTimeout(() => { const el = document.getElementById('chat-messages'); if(el) el.scrollTop = el.scrollHeight; }, 10);
+            } else {
+                container.className = "fixed bottom-10 right-10 z-50 hidden md:block";
+                container.innerHTML = `<button onclick="toggleChat()" class="bg-rose-500 hover:bg-rose-600 text-white p-4 rounded-full shadow-lg transition-transform hover:scale-110 flex items-center justify-center"><i data-lucide="message-circle" width="28"></i></button>`;
+            }
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // 6. LOGIC HANDLERS
+        // ==========================================
+
+        function handleSendOtp(e) {
+            e.preventDefault();
+            if (!state.authName.trim()) return showNotification("Please enter your name");
+            if (!state.authAddress.trim()) return showNotification("Please enter your address");
+            if (state.authPhone.length < 10) return showNotification("Please enter a valid mobile number");
+            state.authLoading = true;
+            render();
+            setTimeout(() => {
+                state.authLoading = false;
+                state.authStep = 2;
+                showNotification(`Your demo OTP is 1234`);
+                render();
+            }, 1500);
+        }
+
+        function handleVerifyOtp(e) {
+            e.preventDefault();
+            state.authLoading = true;
+            render();
+            setTimeout(() => {
+                if (state.authOtp === '1234') {
+                    state.user = { name: state.authName, address: state.authAddress, phone: state.authPhone };
+                } else {
+                    showNotification("Invalid OTP");
+                }
+                state.authLoading = false;
+                render();
+            }, 1000);
+        }
+
+        function fetchLocation() {
+            if (!navigator.geolocation) { return showNotification("Geolocation not supported"); }
+            showNotification("Locating...");
+            // Simulate delay
+            setTimeout(() => {
+                state.authAddress = "New York, USA";
+                render();
+            }, 800);
+        }
+
+        function setActiveTab(tab) { state.activeTab = tab; render(); }
+        function changeMonth(delta) {
+            state.currentDate.setMonth(state.currentDate.getMonth() + delta);
+            render();
+        }
+        function handleDateClick(day) {
+            const dateKey = `${state.currentDate.getFullYear()}-${state.currentDate.getMonth()}-${day}`;
+            state.selectedDateDetails = { dateKey, day, data: state.cycleData[dateKey] || { flow: '', symptoms: [] } };
+            render();
+        }
+        function closeModal() { state.selectedDateDetails = null; render(); }
+        function updateModalData(key, value) { state.selectedDateDetails.data[key] = value; render(); }
+        function toggleSymptom(sym) {
+            const current = state.selectedDateDetails.data.symptoms || [];
+            if (current.includes(sym)) state.selectedDateDetails.data.symptoms = current.filter(s => s !== sym);
+            else state.selectedDateDetails.data.symptoms = [...current, sym];
+            render();
+        }
+        function saveLog() {
+            state.cycleData[state.selectedDateDetails.dateKey] = state.selectedDateDetails.data;
+            state.selectedDateDetails = null;
+            render();
+        }
+        function logPeriodStartToday() {
+            const today = new Date();
+            const dateKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+            state.cycleData[dateKey] = { flow: 'Medium', symptoms: [] };
+            showNotification("Period start logged!");
+            render();
+        }
+        function toggleTopic(id) { state.expandedTopicId = state.expandedTopicId === id ? null : id; render(); }
+        function openArticle(id) { state.activeArticle = id; render(); }
+        function closeArticle() { state.activeArticle = null; render(); }
+        function toggleChat() { state.chatOpen = !state.chatOpen; renderChatWidget(); }
+        
+        function sendAIMessage() {
+            const input = document.getElementById('ai-input');
+            const text = input.value.trim();
+            if(!text) return;
+            state.chatMessages.push({id: Date.now(), sender:'user', text});
+            input.value = '';
+            renderChatWidget();
+            setTimeout(() => {
+                state.chatMessages.push({id: Date.now(), sender:'bot', text: "I can help with that! Check the 'Learn' section for detailed guides."});
+                renderChatWidget();
+            }, 800);
+        }
+
+        // Service & Chat Logic
+        function setServiceView(view) { state.serviceView = view; render(); }
+        function openDoctorChat(id) {
+             state.activeDoctor = DOCTORS.find(d => d.id === id);
+             state.serviceView = 'chat';
+             render();
+             setTimeout(() => {
+                 const el = document.getElementById('doc-chat-area');
+                 if(el) el.scrollTop = el.scrollHeight;
+             }, 50);
+        }
+        
+        function toggleSendIcon() {
+            const val = document.getElementById('doc-input').value.trim();
+            const btn = document.getElementById('main-chat-btn');
+            if(btn) {
+                btn.innerHTML = val.length > 0 ? '<i data-lucide="send" width="20"></i>' : '<i data-lucide="mic" width="20"></i>';
+                lucide.createIcons();
+            }
+        }
+        
+        function handleMainAction() {
+            const input = document.getElementById('doc-input');
+            if (input.value.trim().length > 0) sendDoctorMessage();
+            else sendVoiceNote();
+        }
+        
+        function sendDoctorMessage() {
+            const input = document.getElementById('doc-input');
+            const text = input.value.trim();
+            if(!text) return;
+            const id = state.activeDoctor.id;
+            if(!state.doctorChatMessages[id]) state.doctorChatMessages[id] = [];
+            
+            state.doctorChatMessages[id].push({sender:'me', text, type:'text', ts: Date.now()});
+            input.value = '';
+            toggleSendIcon();
+            render();
+            setTimeout(() => {
+                state.doctorChatMessages[id].push({sender:'them', text: "Thank you for your message. How can I assist?", type:'text', ts: Date.now()});
+                render();
+            }, 1000);
+        }
+        
+        function sendVoiceNote() {
+            showNotification("Recording Audio...");
+            setTimeout(() => {
+                const id = state.activeDoctor.id;
+                if(!state.doctorChatMessages[id]) state.doctorChatMessages[id] = [];
+                state.doctorChatMessages[id].push({sender:'me', type:'audio', ts: Date.now()});
+                render();
+            }, 1000);
+        }
+
+        // --- NEW FILE HANDLING LOGIC ---
+        function attachFile() {
+            const input = document.getElementById('hidden-file-input');
+            input.setAttribute('accept', '*/*'); 
+            input.click();
+        }
+        
+        function takePhoto() {
+            const input = document.getElementById('hidden-file-input');
+            input.setAttribute('accept', 'image/*');
+            input.click();
+        }
+
+        function handleFileInputChange(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const docId = state.activeDoctor.id;
+            if (!state.doctorChatMessages[docId]) state.doctorChatMessages[docId] = [];
+            
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    state.doctorChatMessages[docId].push({
+                        sender: 'me',
+                        type: 'image',
+                        content: e.target.result, 
+                        ts: Date.now()
+                    });
+                    render();
+                };
+                reader.readAsDataURL(file);
+            } else {
+                state.doctorChatMessages[docId].push({
+                    sender: 'me',
+                    type: 'document',
+                    text: file.name, 
+                    ts: Date.now()
+                });
+                render();
+            }
+            input.value = '';
+        }
+
+        // Call Logic
+        function startCall(type) {
+            state.callType = type;
+            state.isVideoCallActive = true;
+            state.isMuted = false;
+            state.isVideoPaused = false;
+            render();
+        }
+        
+        function toggleMute() {
+            state.isMuted = !state.isMuted;
+            if(state.localStream) {
+                state.localStream.getAudioTracks().forEach(track => track.enabled = !state.isMuted);
+            }
+            renderCallOverlay();
+        }
+        
+        function toggleVideo() {
+            state.isVideoPaused = !state.isVideoPaused;
+            if(state.localStream) {
+                state.localStream.getVideoTracks().forEach(track => track.enabled = !state.isVideoPaused);
+            }
+            renderCallOverlay();
+        }
+        
+        function endCall() {
+            state.isVideoCallActive = false;
+            if(state.localStream) {
+                state.localStream.getTracks().forEach(track => track.stop());
+                state.localStream = null;
+            }
+            document.getElementById('video-call-container').innerHTML = '';
+            render(); 
+        }
+
+        // Pharmacy Logic
+        function addToCart(item) {
+            const existing = state.cart.find(i => i.id === item.id);
+            if(existing) existing.qty += 1; else state.cart.push({ ...item, qty: 1 });
+            showNotification("Added to Cart!"); render();
+        }
+        function removeFromCart(id) { state.cart = state.cart.filter(i => i.id !== id); render(); }
+        function placeOrder() {
+            if(state.cart.length === 0) return showNotification("Cart is empty!");
+            state.cart = []; state.serviceView = 'pharmacy'; showNotification("Order Placed Successfully!"); render();
+        }
+
+        // Initial Boot
+        render();
+
+    </script>
+</body>
+</html>
